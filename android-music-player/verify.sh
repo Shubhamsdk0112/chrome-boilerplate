@@ -133,7 +133,7 @@ rm -rf out
 set +e
 "$KOTLINC" stubs/*.kt \
     "$SRC/main/java/org/akanework/gramophone/extras/filter/"*.kt \
-    "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex,JobStore}.kt \
+    "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex,JobStore}.kt     "$SRC/main/java/org/akanework/gramophone/extras/podcast/"{Feed,PodcastSearch,PodcastStore,EpisodeDownloader}.kt \
     "$SRC/test/java/org/akanework/gramophone/extras/"*/*.kt \
     -classpath "$CP" -d out > compile.log 2>&1
 compile_rc=$?
@@ -152,7 +152,7 @@ echo "==> Running tests"
     org.akanework.gramophone.extras.importer.DownloadErrorTest \
     org.akanework.gramophone.extras.importer.ArtworkMatchTest \
     org.akanework.gramophone.extras.importer.PickOutputTest \
-    org.akanework.gramophone.extras.importer.AudioFormatTest 2>&1 | grep -v "Picked up"
+    org.akanework.gramophone.extras.importer.AudioFormatTest     org.akanework.gramophone.extras.podcast.RssParserTest 2>&1 | grep -v "Picked up"
 
 # These pull in Compose and androidx.core, which cannot be resolved here, so
 # only their syntax can be checked. Resolution errors are expected and ignored;

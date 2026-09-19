@@ -218,7 +218,7 @@ object RssParser {
     /** Show notes arrive as HTML; the list wants one plain paragraph. */
     internal fun stripHtml(html: String): String =
         html.replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
-            .replace(Regex("</p\\s*>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("</p\\s*>", RegexOption.IGNORE_CASE), "\n\n")
             .replace(Regex("<[^>]+>"), "")
             .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
             .replace("&quot;", "\"").replace("&#39;", "'").replace("&nbsp;", " ")

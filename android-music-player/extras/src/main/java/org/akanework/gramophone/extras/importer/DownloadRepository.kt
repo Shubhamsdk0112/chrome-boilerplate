@@ -32,6 +32,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -344,6 +345,9 @@ class DownloadRepository(private val context: Context) {
     private suspend fun processEpisode(job: DownloadJob) {
         val jobId = job.id
         val store = PodcastStore.get(context)
+        // On a resume after process death this runs before the store has read
+        // its file; looking the episode up then would wrongly fail the job.
+        store.loaded.first { it }
         val podcast = job.feedUrl?.let { store.podcast(it) }
         val episode = job.episodeGuid?.let { store.episode(it) }
         if (podcast == null || episode == null) {

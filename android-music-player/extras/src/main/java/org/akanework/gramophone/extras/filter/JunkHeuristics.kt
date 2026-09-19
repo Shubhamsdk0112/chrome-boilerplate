@@ -149,12 +149,20 @@ object JunkHeuristics {
 
     private fun decisive(c: AudioCandidate, options: FilterOptions): Verdict? {
         val name = c.nameWithoutExtension
-        val folder = c.folder
+        // Trailing slash matters: without it a pattern like "/telegram/" misses
+        // a file sitting directly in /Telegram and only matches subfolders.
+        val folder = c.folder + "/"
 
         // Checked before every junk rule, so a download that happens to look
         // odd still survives.
-        if (folder.contains(IMPORT_FOLDER)) {
+        if (folder.contains("$IMPORT_FOLDER/")) {
             return Verdict(Judgement.MUSIC, "You imported this")
+        }
+
+        // A file with nothing but an extension was never something a person
+        // chose to keep. This is not one of the toggleable categories.
+        if (name.isBlank()) {
+            return junk("File has no name")
         }
 
         if (options.hideVideoFiles && c.extension in VIDEO_EXTENSIONS) {
@@ -174,11 +182,6 @@ object JunkHeuristics {
             if (CAPTURE_FILENAMES.any { it.containsMatchIn(name) }) {
                 return junk("Named like a screen or meeting recording")
             }
-            // "some doesn't even have names" — a file with nothing but an
-            // extension was never something anyone chose to keep as music.
-            if (name.isBlank()) {
-                return junk("File has no name")
-            }
             if (c.isRecording) {
                 return junk("Marked as a recording by Android")
             }
@@ -191,7 +194,7 @@ object JunkHeuristics {
             if (c.isRingtone) return junk("Marked as a ringtone")
             if (c.isNotification) return junk("Marked as a notification sound")
             if (c.isAlarm) return junk("Marked as an alarm sound")
-            if (SYSTEM_SOUND_FOLDERS.any { folder.endsWith(it) || folder.contains("$it/") }) {
+            if (SYSTEM_SOUND_FOLDERS.any { folder.contains("$it/") }) {
                 return junk("Stored in a system sounds folder")
             }
         }
@@ -214,6 +217,8 @@ object JunkHeuristics {
     }
 
     private fun weigh(c: AudioCandidate): List<Signal> = buildList {
+        // Same trailing-slash normalisation as decisive(), for the same reason.
+        val folder = c.folder + "/"
         // --- positive: it looks like a tagged song in a music folder ---
         val hasArtist = !c.artist.isNullOrBlank() && !c.artist.equals("<unknown>", true)
         val hasAlbum = !c.album.isNullOrBlank()
@@ -221,7 +226,7 @@ object JunkHeuristics {
             hasArtist && hasAlbum -> add(Signal(45, "has artist and album tags"))
             hasArtist -> add(Signal(28, "has an artist tag"))
         }
-        if (MUSIC_FOLDERS.any { c.folder.contains(it) }) {
+        if (MUSIC_FOLDERS.any { folder.contains("$it/") }) {
             add(Signal(22, "stored in a music folder"))
         }
 
@@ -252,17 +257,17 @@ object JunkHeuristics {
         if (!c.isMusicFlag) add(Signal(-22, "Android does not classify it as music"))
         if (c.isPodcast) add(Signal(-14, "marked as a podcast"))
         if (c.isAudiobook) add(Signal(-14, "marked as an audiobook"))
-        if (c.folder.endsWith("/download") || c.folder.endsWith("/downloads")) {
+        if (folder.contains("/download/") || folder.contains("/downloads/")) {
             add(Signal(-8, "sitting in Downloads"))
         }
         // Another app's private media directory. Weighted rather than decisive:
         // a few legitimate music apps do keep libraries under here.
-        if (c.folder.contains("/android/media/") || c.folder.contains("/android/data/")) {
+        if (folder.contains("/android/media/") || folder.contains("/android/data/")) {
             add(Signal(-20, "inside another app's storage"))
         }
         // Camera and gallery folders hold captures, not music.
         if (listOf("/dcim", "/movies", "/pictures", "/screenshots")
-                .any { c.folder.contains(it) }
+                .any { folder.contains("$it/") }
         ) {
             add(Signal(-18, "in a camera or gallery folder"))
         }

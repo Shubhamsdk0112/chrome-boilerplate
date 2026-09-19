@@ -105,6 +105,46 @@ class JunkHeuristicsTest {
     }
 
     @Test
+    fun `a file sitting directly in a junk folder is caught`() {
+        // Regression: the folder patterns carry a trailing slash, and the
+        // folder string does not, so these only matched files in a SUBfolder.
+        assertEquals(
+            Judgement.JUNK,
+            judge(candidate("/storage/emulated/0/Telegram/track.mp3")),
+        )
+        assertEquals(
+            Judgement.JUNK,
+            judge(candidate("/storage/emulated/0/Signal/clip.aac")),
+        )
+        assertEquals(
+            Judgement.JUNK,
+            judge(candidate("/storage/emulated/0/Android/media/com.whatsapp/x.opus")),
+        )
+    }
+
+    @Test
+    fun `a music folder is still recognised for a file directly inside it`() {
+        val c = candidate("/storage/emulated/0/Music/song.mp3",
+            artist = "Daft Punk", album = "RAM")
+        assertEquals(Judgement.MUSIC, judge(c))
+    }
+
+    @Test
+    fun `an unnamed file is junk regardless of the category toggles`() {
+        val nameless = candidate("/storage/emulated/0/Music/.mp3")
+        assertEquals(Judgement.JUNK, judge(nameless))
+        assertEquals(
+            Judgement.JUNK,
+            judge(nameless, FilterOptions(
+                hideVoiceNotes = false,
+                hideRingtonesAndAlarms = false,
+                hideVideoFiles = false,
+                hideShortClips = false,
+            )),
+        )
+    }
+
+    @Test
     fun `voice recorder output is junk`() {
         val names = listOf(
             "Recording_001.m4a", "New Recording 12.m4a", "REC_0042.mp3",

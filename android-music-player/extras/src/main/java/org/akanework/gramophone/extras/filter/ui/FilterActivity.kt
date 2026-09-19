@@ -49,6 +49,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.filter.AiClassifier
@@ -119,6 +121,15 @@ private fun FilterScreen() {
     // Paths the user has just restored. Kept separately so the row disappears
     // immediately instead of waiting for the next scan to rebuild the list.
     val restored = remember { mutableStateListOf<String>() }
+
+    // Restoring files one tap at a time would otherwise rewrite the shared
+    // blacklist on every tap, and each of those writes makes Gramophone re-read
+    // the entire library. Collapse a burst of taps into a single write.
+    LaunchedEffect(restored.size) {
+        if (restored.isEmpty()) return@LaunchedEffect
+        delay(700)
+        store.hiddenPaths = store.hiddenPaths - restored.toSet()
+    }
 
     fun rescan() {
         scope.launch {
@@ -394,8 +405,11 @@ private fun FilterScreen() {
                                 name = entry.candidate.displayName,
                                 reason = entry.verdict.reason,
                                 onKeep = {
+                                    // Only the private override is written here.
+                                    // The shared hidden set is updated by the
+                                    // debounced effect above, because every
+                                    // write to it reloads the whole library.
                                     store.setManualOverride(entry.candidate.path, Judgement.MUSIC)
-                                    store.hiddenPaths = store.hiddenPaths - entry.candidate.path
                                     restored += entry.candidate.path
                                 },
                             )

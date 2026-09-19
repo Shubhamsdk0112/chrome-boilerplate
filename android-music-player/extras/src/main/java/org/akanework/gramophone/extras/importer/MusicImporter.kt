@@ -72,15 +72,34 @@ object MusicImporter {
         val collection = MediaStore.Audio.Media
             .getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
-        val values = baseValues(file, meta, album).apply {
-            put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/$SUB_DIRECTORY")
+        val relativePath = "${Environment.DIRECTORY_MUSIC}/$SUB_DIRECTORY"
+
+        // Descriptive columns (TITLE, ARTIST, ALBUM, DURATION) are derived by
+        // MediaProvider from the file's own tags on some Android versions, and
+        // supplying them can be rejected outright. We can afford to lose them:
+        // yt-dlp embedded the tags during the download and the tagging pass
+        // refined them, so a scan recovers everything. Falling back to the
+        // minimum is strictly better than failing the import over a column.
+        val full = baseValues(file, meta, album).apply {
+            put(MediaStore.Audio.Media.RELATIVE_PATH, relativePath)
+            put(MediaStore.Audio.Media.IS_PENDING, 1)
+        }
+        val minimal = ContentValues().apply {
+            put(MediaStore.Audio.Media.DISPLAY_NAME, file.name)
+            put(MediaStore.Audio.Media.MIME_TYPE, mimeTypeOf(file.extension))
+            put(MediaStore.Audio.Media.RELATIVE_PATH, relativePath)
             put(MediaStore.Audio.Media.IS_PENDING, 1)
         }
 
-        val uri = resolver.insert(collection, values) ?: run {
-            Log.w(TAG, "MediaStore refused the insert")
-            return null
-        }
+        val uri = insertOrNull(resolver, collection, full)
+            ?: insertOrNull(resolver, collection, minimal)?.also {
+                Log.i(TAG, "MediaStore rejected the descriptive columns; " +
+                    "inserted with the minimum and letting the scan read the file's tags")
+            }
+            ?: run {
+                Log.w(TAG, "MediaStore refused the insert")
+                return null
+            }
 
         return try {
             resolver.openOutputStream(uri)?.use { out ->
@@ -136,6 +155,21 @@ object MusicImporter {
         )
     } catch (e: Exception) {
         Log.e(TAG, "legacy publish failed", e)
+        null
+    }
+
+    /** Returns null instead of throwing when MediaProvider rejects the columns. */
+    private fun insertOrNull(
+        resolver: android.content.ContentResolver,
+        collection: android.net.Uri,
+        values: ContentValues,
+    ): Uri? = try {
+        resolver.insert(collection, values)
+    } catch (e: IllegalArgumentException) {
+        Log.d(TAG, "insert rejected: ${e.message}")
+        null
+    } catch (e: SecurityException) {
+        Log.w(TAG, "insert denied", e)
         null
     }
 

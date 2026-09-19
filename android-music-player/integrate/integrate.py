@@ -50,8 +50,18 @@ def main(root: Path) -> int:
     # ------------------------------------------------------------------
     destination = root / "extras"
     if destination.exists():
-        shutil.rmtree(destination)
-    shutil.copytree(MODULE_SRC, destination)
+        # Replace the sources but leave Gradle's own output directory alone:
+        # on Windows the daemon keeps files under extras/build open, so
+        # deleting it fails, and keeping it means a re-run does not force a
+        # full rebuild of the module.
+        for child in destination.iterdir():
+            if child.name == "build":
+                continue
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    shutil.copytree(MODULE_SRC, destination, dirs_exist_ok=True)
     steps.append("  + extras/: module copied")
 
     # ------------------------------------------------------------------

@@ -61,10 +61,20 @@ object FilterWatcher {
     /**
      * Starts watching if the user has asked for it. Safe to call repeatedly —
      * the intended caller is `Application.onCreate`.
+     *
+     * The preference read is a disk read, and Gramophone's debug builds run
+     * `Application.onCreate` under a StrictMode policy that turns a main-thread
+     * disk read into a dialog. So the decision is made on the IO dispatcher;
+     * `registerContentObserver` is thread-agnostic and callbacks still land on
+     * the main looper through the handler.
      */
-    @Synchronized
     fun ensureStarted(context: Context) {
         val appContext = context.applicationContext
+        scope.launch { applyPreference(appContext) }
+    }
+
+    @Synchronized
+    private fun applyPreference(appContext: Context) {
         val store = FilterStore(appContext)
         if (!store.enabled || !store.autoRescan) {
             stop(appContext)

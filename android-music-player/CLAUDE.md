@@ -16,6 +16,10 @@ holding three features:
   it, stream or download episodes (resumable), play through Gramophone's own
   player, pick up where you left off. Episode files live under the app's
   external files dir so they never appear as songs.
+- **podcasts from YouTube** — a YouTube video ≥ 10 min (or one asked for as a
+  podcast) becomes an episode of a show named after its channel, with the
+  video's chapters; `Pacing.longVideosToPodcasts` is the switch. "On this
+  phone" lists MediaStore audio ≥ 10 min as a virtual show.
 - **filter** — hides non-music (WhatsApp voice notes, recordings, ringtones,
   video files) using local rules plus an optional OpenRouter pass for whatever
   the rules cannot place.
@@ -49,7 +53,11 @@ emulator:
   session (dumpsys shows our item), position persisted.
 - Process death: a queued song or episode is re-run on the next launch of
   any screen ("resuming N interrupted job(s)" in logcat).
-- `./verify.sh`: 112 unit tests pass, on Windows too.
+- YouTube podcast: a 28-min video with 10 chapters routed to Podcasts on its
+  own, chapters parsed, chapter skip lands on the right seconds; a 403 from
+  YouTube went through the automatic retry + pacing.
+- Pull-to-refresh, download pacing menu, green player, long-audio rule.
+- `./verify.sh`: 115 unit tests pass, on Windows too.
 
 ## Build
 
@@ -108,7 +116,7 @@ Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py`
 
 ## Verify without the SDK
 
-`./verify.sh` compiles the module and runs all 112 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 115 unit tests using only Maven
 Central (a Robolectric `android.jar`, the real youtubedl-android classes, and
 two small androidx stubs). Useful in CI or a sandbox. **Not** a substitute for a
 Gradle build — it cannot type-check Compose.
@@ -165,6 +173,10 @@ Gradle build — it cannot type-check Compose.
 
 - Playback speed and skip-silence for podcasts (Gramophone has a speed
   control in the player; nothing podcast-specific yet).
+- Pacing: the gap also applies to the automatic retry of the same job,
+  which is fine after a 403 but adds a wait after plain network drops.
+- YouTube channel shows use the first video's thumbnail as cover; yt-dlp
+  does not give the channel avatar in a single-video probe.
 - Auto-download new episodes / refresh feeds in the background.
 
 - Downloads and the OpenRouter call open untagged sockets, which upstream's

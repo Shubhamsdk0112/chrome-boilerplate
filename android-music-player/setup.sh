@@ -11,13 +11,18 @@
 # build with gradlew.bat.
 set -euo pipefail
 
-# Windows installs Python as `python`, most other places as `python3`.
-if command -v python3 >/dev/null 2>&1; then
-    PYTHON=python3
-elif command -v python >/dev/null 2>&1; then
-    PYTHON=python
-else
-    echo "error: Python 3 is required but was not found on PATH" >&2
+# Windows installs Python as `python`, most other places as `python3`. On
+# Windows `python3` is often a Microsoft Store stub that prints an install
+# prompt and exits non-zero, so pick the first name that actually runs.
+PYTHON=""
+for candidate in python3 python py; do
+    if "$candidate" -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" >/dev/null 2>&1; then
+        PYTHON=$candidate
+        break
+    fi
+done
+if [ -z "$PYTHON" ]; then
+    echo "error: Python 3.8+ is required but was not found on PATH" >&2
     exit 1
 fi
 
@@ -29,6 +34,10 @@ CHECKOUT="${1:-$HERE/build/Gramophone}"
 # deliberately, then re-run integrate.py and fix anything it reports.
 UPSTREAM_URL="https://github.com/AkaneTan/Gramophone.git"
 UPSTREAM_COMMIT="e8217339ffe7e70de05d41ad1c2a24ba1cf35946"
+
+# Media3's test assets have paths past Windows' 260-character limit. Without
+# this the submodule checkout fails with "Filename too long".
+git config --global core.longpaths true 2>/dev/null || true
 
 if [ ! -d "$CHECKOUT/.git" ]; then
     echo "==> Cloning Gramophone into $CHECKOUT"

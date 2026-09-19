@@ -26,7 +26,7 @@ class AnchorMissing(RuntimeError):
 
 def patch(path: Path, anchor: str, replacement: str, *, marker: str) -> str:
     """Replace `anchor` with `replacement`, unless `marker` is already present."""
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if marker in text:
         return f"  = {path.name}: already patched"
     if anchor not in text:
@@ -34,7 +34,7 @@ def patch(path: Path, anchor: str, replacement: str, *, marker: str) -> str:
             f"{path}: could not find the anchor below. Upstream has changed; "
             f"apply this edit by hand.\n--- anchor ---\n{anchor}\n--------------"
         )
-    path.write_text(text.replace(anchor, replacement, 1))
+    path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8", newline="\n")
     return f"  + {path.name}: patched"
 
 

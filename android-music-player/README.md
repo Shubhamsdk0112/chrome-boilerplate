@@ -171,7 +171,16 @@ You supply your own OpenRouter key in the settings screen; it is stored in the
 app's private preferences and never compiled in. The model is a text field —
 it defaults to a cheap one and any OpenRouter model id works.
 
-### Two things it will never do
+### Keeping it clean by itself
+
+A one-off cleanup is only half the job — messaging apps keep producing voice
+notes. **Keep it clean automatically** (off by default) watches MediaStore and
+re-runs the filter when new audio appears, debounced by 15 seconds so copying an
+album triggers one scan rather than one per track. Because verdicts are cached,
+a re-scan only does real work for files it has not seen, so the steady-state
+cost is close to nothing.
+
+### Three things it will never do
 
 **It never deletes anything.** A junk verdict adds the file's path to
 Gramophone's blacklist, which hides it from the library. The file stays on your
@@ -181,6 +190,11 @@ phone, untouched. "Show everything again" reverses the whole thing instantly.
 replying with garbage — every failure path leaves files *visible*. The filter is
 built so its worst case is showing too much, never silently swallowing your
 music.
+
+**It never hides what you imported.** Anything the YouTube importer wrote to
+`Music/Gramophone/` is music by definition and is exempt from every rule, even
+when its tagging pass failed and the file looks anonymous. The app does not get
+to undo its own work.
 
 Every hidden file is listed with the reason it was hidden, and a **Keep** button
 that overrides the decision permanently.

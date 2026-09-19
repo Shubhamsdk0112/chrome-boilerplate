@@ -66,6 +66,7 @@ import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.filter.AiClassifier
 import org.akanework.gramophone.extras.filter.FilterStore
+import org.akanework.gramophone.extras.filter.FilterWatcher
 import org.akanework.gramophone.extras.filter.Judgement
 import org.akanework.gramophone.extras.filter.LibraryScanner
 
@@ -107,6 +108,7 @@ private fun FilterScreen() {
 
     var enabled by remember { mutableStateOf(store.enabled) }
     var aiEnabled by remember { mutableStateOf(store.aiEnabled) }
+    var autoRescan by remember { mutableStateOf(store.autoRescan) }
     var apiKey by remember { mutableStateOf(store.apiKey) }
     var model by remember { mutableStateOf(store.model) }
     var options by remember { mutableStateOf(store.options) }
@@ -162,6 +164,7 @@ private fun FilterScreen() {
                             store.unhideAll()
                             result = null
                         }
+                        FilterWatcher.ensureStarted(context)
                     },
                 )
             }
@@ -222,6 +225,19 @@ private fun FilterScreen() {
                         onChange = {
                             options = options.copy(hidePodcastsAndAudiobooks = it)
                             store.options = options
+                        },
+                    )
+                }
+
+                item {
+                    SwitchRow(
+                        title = stringResource(R.string.filter_auto),
+                        subtitle = stringResource(R.string.filter_auto_summary),
+                        checked = autoRescan,
+                        onChange = {
+                            autoRescan = it
+                            store.autoRescan = it
+                            FilterWatcher.ensureStarted(context)
                         },
                     )
                 }

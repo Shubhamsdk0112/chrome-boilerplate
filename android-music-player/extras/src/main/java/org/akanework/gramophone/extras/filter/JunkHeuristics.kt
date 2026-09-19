@@ -122,6 +122,13 @@ object JunkHeuristics {
 
     private val MUSIC_FOLDERS = listOf("/music", "/musica", "/songs", "/itunes", "/media/music")
 
+    /**
+     * Where the YouTube importer writes. Anything the user deliberately added
+     * through this app is music by definition and must never be filtered back
+     * out — that would be the app undoing its own work.
+     */
+    private const val IMPORT_FOLDER = "/music/gramophone"
+
     // ---------------------------------------------------------------
 
     fun classify(
@@ -143,6 +150,12 @@ object JunkHeuristics {
     private fun decisive(c: AudioCandidate, options: FilterOptions): Verdict? {
         val name = c.nameWithoutExtension
         val folder = c.folder
+
+        // Checked before every junk rule, so a download that happens to look
+        // odd still survives.
+        if (folder.contains(IMPORT_FOLDER)) {
+            return Verdict(Judgement.MUSIC, "You imported this")
+        }
 
         if (options.hideVideoFiles && c.extension in VIDEO_EXTENSIONS) {
             return junk("Video file (.${c.extension})")

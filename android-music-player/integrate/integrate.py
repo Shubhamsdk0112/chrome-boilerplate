@@ -224,6 +224,23 @@ def main(root: Path) -> int:
         marker="junkFilterPaths",
     ))
 
+    # ------------------------------------------------------------------
+    # 8. Start the filter's watcher, if the user has switched it on.
+    #    One line; the watcher itself checks the preference and does nothing
+    #    when the feature is off.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "GramophoneApplication.kt",
+        anchor="""        // Set application theme when launching.""",
+        replacement="""        // Re-applies the :extras library filter when new audio appears.
+        // No-ops unless the user enabled both the filter and auto re-scan.
+        org.akanework.gramophone.extras.filter.FilterWatcher.ensureStarted(this)
+
+        // Set application theme when launching.""",
+        marker="FilterWatcher.ensureStarted",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

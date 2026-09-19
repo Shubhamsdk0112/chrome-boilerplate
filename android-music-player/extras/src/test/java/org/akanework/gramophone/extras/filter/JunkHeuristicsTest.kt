@@ -252,6 +252,24 @@ class JunkHeuristicsTest {
     // ---------------------------------------------------------------
 
     @Test
+    fun `anything the importer downloaded is always kept`() {
+        // The app must never filter out its own downloads, even when the
+        // tagging pass failed and the file looks anonymous.
+        val untagged = candidate(
+            "/storage/emulated/0/Music/Gramophone/dQw4w9WgXcQ.m4a",
+            durationMs = 30_000,
+            sizeBytes = 90_000,
+        )
+        assertEquals(Judgement.MUSIC, judge(untagged))
+
+        // Even with the strictest options turned on.
+        assertEquals(
+            Judgement.MUSIC,
+            judge(untagged, FilterOptions(hidePodcastsAndAudiobooks = true)),
+        )
+    }
+
+    @Test
     fun `a properly tagged song is music`() {
         val c = candidate(
             "/storage/emulated/0/Music/Daft Punk/Random Access Memories/03 Get Lucky.mp3",

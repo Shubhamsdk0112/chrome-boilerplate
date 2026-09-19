@@ -50,6 +50,9 @@
     <string name="filter_podcasts">Podcasts and audiobooks</string>
     <string name="filter_podcasts_summary">Off by default — these are real audio, just not songs</string>
 
+    <string name="filter_auto">Keep it clean automatically</string>
+    <string name="filter_auto_summary">Re-check when new audio appears, so new voice notes never pile up. Only new files are looked at.</string>
+
     <string name="filter_ai">Ask an AI about the leftovers</string>
     <string name="filter_ai_summary">Only for files the rules above cannot place. Usually a handful.</string>
     <string name="filter_api_key">OpenRouter API key</string>

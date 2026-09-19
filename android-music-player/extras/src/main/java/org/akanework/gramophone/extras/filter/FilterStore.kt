@@ -51,6 +51,11 @@ class FilterStore(context: Context) {
         get() = own.getBoolean("enabled", false)
         set(value) = own.edit { putBoolean("enabled", value) }
 
+    /** Re-run the filter automatically when new audio appears. */
+    var autoRescan: Boolean
+        get() = own.getBoolean("auto_rescan", false)
+        set(value) = own.edit { putBoolean("auto_rescan", value) }
+
     var aiEnabled: Boolean
         get() = own.getBoolean("ai_enabled", false)
         set(value) = own.edit { putBoolean("ai_enabled", value) }

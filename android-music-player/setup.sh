@@ -52,7 +52,14 @@ git -C "$CHECKOUT" checkout --quiet "$UPSTREAM_COMMIT"
 # media3 is a patched fork Gramophone builds from source, and hificore needs
 # libusb + farbot. Without these the Gradle build fails at configuration time.
 echo "==> Fetching submodules (this pulls a patched Media3, expect a few hundred MB)"
-git -C "$CHECKOUT" submodule update --init --recursive
+# --force: always run the checkout even when the recorded commit already
+# matches, so a checkout that died halfway (long paths on Windows) is repaired
+# on the next run instead of silently leaving a tree with files missing.
+git -C "$CHECKOUT" submodule update --init --recursive --force
+if [ ! -f "$CHECKOUT/media3/settings.gradle.kts" ]; then
+    echo "error: media3 submodule is incomplete (no settings.gradle.kts)" >&2
+    exit 1
+fi
 
 echo "==> Applying the :extras integration"
 "$PYTHON" "$HERE/integrate/integrate.py" "$CHECKOUT"

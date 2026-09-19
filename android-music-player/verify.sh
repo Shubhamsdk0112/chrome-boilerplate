@@ -102,9 +102,20 @@ inline fun SharedPreferences.edit(
 }
 STUB
 
-CP=$(ls libs/*.jar | tr '\n' ':')
+# The JVM's classpath separator is ';' on Windows and ':' everywhere else.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) SEP=';' ;;
+    *) SEP=':' ;;
+esac
+CP=$(ls libs/*.jar | tr '\n' "$SEP")
 KOTLINC=kotlinc/bin/kotlinc
 export JAVA_TOOL_OPTIONS=""
+# Android Studio installs ship a JDK but do not put it on PATH; kotlinc finds
+# it through JAVA_HOME, so the test runner should too.
+JAVA=java
+if ! command -v java >/dev/null 2>&1 && [ -n "${JAVA_HOME:-}" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+fi
 
 echo "==> Compiling module + tests"
 rm -rf out
@@ -122,7 +133,7 @@ if [ "$compile_rc" -ne 0 ] || grep -q "error:" compile.log; then
 fi
 
 echo "==> Running tests"
-java -cp "out:$CP:kotlinc/lib/kotlin-stdlib.jar" org.junit.runner.JUnitCore \
+"$JAVA" -cp "out${SEP}${CP}kotlinc/lib/kotlin-stdlib.jar" org.junit.runner.JUnitCore \
     org.akanework.gramophone.extras.filter.JunkHeuristicsTest \
     org.akanework.gramophone.extras.filter.AiClassifierTest \
     org.akanework.gramophone.extras.filter.VerdictTest \
@@ -140,7 +151,7 @@ status=0
 for f in "$SRC/main/java/org/akanework/gramophone/extras/importer/ui/DownloaderActivity.kt" \
          "$SRC/main/java/org/akanework/gramophone/extras/filter/ui/FilterActivity.kt" \
          "$SRC/main/java/org/akanework/gramophone/extras/importer/DownloadService.kt"; do
-    found=$("$KOTLINC" "$f" -d /tmp/syntax-check 2>&1 \
+    found=$("$KOTLINC" "$f" -d "$CACHE/syntax-check" 2>&1 \
         | grep "error:" | grep -iE "syntax error|expecting|unexpected token" || true)
     if [ -n "$found" ]; then
         echo "  SYNTAX ERROR in $(basename "$f")"; echo "$found"; status=1

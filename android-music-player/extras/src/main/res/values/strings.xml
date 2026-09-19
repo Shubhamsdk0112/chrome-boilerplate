@@ -159,4 +159,8 @@
 
     <string name="filter_settings_title">Filter library</string>
     <string name="filter_settings_summary">Hide voice notes, recordings and other non-music</string>
+
+    <!-- Playback (patched into upstream Behaviour settings) -->
+    <string name="extras_resume_title">Resume after other apps finish playing</string>
+    <string name="extras_resume_summary">When a video or another app takes over the sound, start playing again once it has been quiet for a few seconds. Calls always pause and resume on their own.</string>
 </resources>

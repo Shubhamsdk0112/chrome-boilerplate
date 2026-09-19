@@ -656,6 +656,242 @@ def main(root: Path) -> int:
         marker="ListeningHistory.start",
     ))
 
+
+    # ------------------------------------------------------------------
+    # 9a. Back goes up one folder in the Folders / Filesystem tabs instead
+    #     of leaving the app. Upstream navigates those tabs in place (the
+    #     ".." row is the only way up) and never registered a back callback.
+    #     The callback is live only while the tab is the visible page and a
+    #     folder is open, and it defers to anything more specific — an
+    #     expanded player sheet, a fragment on the back stack — by disabling
+    #     itself and re-dispatching.
+    # ------------------------------------------------------------------
+    folder_adapter = (root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+                      / "ui" / "adapters" / "DetailedFolderAdapter.kt")
+    steps.append(patch(
+        folder_adapter,
+        anchor="""    val qTitle = fileNodePath.map { it?.lastOrNull() ?: "/" }""",
+        replacement="""    val qTitle = fileNodePath.map { it?.lastOrNull() ?: "/" }
+
+    // :extras — Back goes up one folder instead of leaving the app.
+    private var inFolder = false
+    private val backCallback = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            // Anything more specific — an expanded player sheet, a fragment
+            // on the back stack — wins, exactly as if this callback did not
+            // exist.
+            isEnabled = false
+            if (mainActivity.onBackPressedDispatcher.hasEnabledCallbacks()) {
+                mainActivity.onBackPressedDispatcher.onBackPressed()
+            } else {
+                enter(null)
+            }
+            refreshBackCallback()
+        }
+    }
+    private val backCallbackLifecycle =
+        androidx.lifecycle.LifecycleEventObserver { _, _ -> refreshBackCallback() }
+
+    private fun refreshBackCallback() {
+        // Pages that are not the current one sit at STARTED, so this also
+        // keeps a remembered folder on a hidden tab from swallowing Back.
+        backCallback.isEnabled = inFolder && fragment.lifecycle.currentState
+            .isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+    }""",
+        marker="refreshBackCallback",
+    ))
+    steps.append(patch(
+        folder_adapter,
+        anchor="""        this.scope!!.launch {
+            fileNodePath.collect {
+                withContext(Dispatchers.Main) {
+                    folderPopAdapter.enabled = !it.isNullOrEmpty()
+                }
+            }
+        }
+    }""",
+        replacement="""        this.scope!!.launch {
+            fileNodePath.collect {
+                withContext(Dispatchers.Main) {
+                    folderPopAdapter.enabled = !it.isNullOrEmpty()
+                    inFolder = !it.isNullOrEmpty()
+                    refreshBackCallback()
+                }
+            }
+        }
+        mainActivity.onBackPressedDispatcher.addCallback(fragment, backCallback)
+        fragment.lifecycle.addObserver(backCallbackLifecycle)
+    }""",
+        marker="addCallback(fragment, backCallback)",
+    ))
+    steps.append(patch(
+        folder_adapter,
+        anchor="""    override fun onDetachedFromRecyclerView(recyclerView: MyRecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        scope!!.cancel()
+        scope = null
+    }""",
+        replacement="""    override fun onDetachedFromRecyclerView(recyclerView: MyRecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        scope!!.cancel()
+        scope = null
+        backCallback.remove()
+        fragment.lifecycle.removeObserver(backCallbackLifecycle)
+    }""",
+        marker="backCallback.remove()",
+    ))
+
+    # ------------------------------------------------------------------
+    # 9b. Previous / next never disappear. ExoPlayer withdraws
+    #     COMMAND_SEEK_TO_NEXT on the last song (repeat off), so the
+    #     notification drops the button and Android's media controls reflow
+    #     the custom buttons into the gap. Always offer both commands and
+    #     wrap the seek around at either end (9c).
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "utils" / "exoplayer" / "EndedWorkaroundPlayer.kt",
+        anchor="""        if (isEnded) {
+            if (superState.playerError != null) {""",
+        replacement="""        // :extras — previous/next stay available at both ends of the queue;
+        // the service wraps the seek around. Otherwise the last song loses
+        // its "next" button and the system media controls reflow the custom
+        // buttons into the gap, which reads as the buttons disappearing.
+        if (!superState.timeline.isEmpty) {
+            superState = superState.buildUpon()
+                .setAvailableCommands(
+                    superState.availableCommands.buildUpon()
+                        .add(COMMAND_SEEK_TO_NEXT)
+                        .add(COMMAND_SEEK_TO_PREVIOUS)
+                        .build()
+                )
+                .build()
+        }
+        if (isEnded) {
+            if (superState.playerError != null) {""",
+        marker="add(COMMAND_SEEK_TO_NEXT)",
+    ))
+
+    service = (root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+               / "logic" / "GramophonePlaybackService.kt")
+
+    # 9c. The wrap-around itself, at the one place every controller — the
+    #     notification, the system media controls, Bluetooth buttons, our own
+    #     UI — goes through.
+    steps.append(patch(
+        service,
+        anchor="""    override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {""",
+        replacement="""    // :extras — see EndedWorkaroundPlayer.getState(): next/previous are always
+    // offered, so at either end of the queue they wrap around instead of
+    // silently doing nothing.
+    override fun onPlayerCommandRequest(
+        session: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        playerCommand: Int
+    ): Int {
+        val player = session.player
+        val timeline = player.currentTimeline
+        if (!timeline.isEmpty && !player.isCurrentMediaItemLive) {
+            val shuffle = player.shuffleModeEnabled
+            if (playerCommand == Player.COMMAND_SEEK_TO_NEXT && !player.hasNextMediaItem()) {
+                player.seekTo(timeline.getFirstWindowIndex(shuffle), C.TIME_UNSET)
+                return SessionResult.RESULT_INFO_SKIPPED
+            }
+            if (playerCommand == Player.COMMAND_SEEK_TO_PREVIOUS && !player.hasPreviousMediaItem()
+                && player.currentPosition <= player.maxSeekToPreviousPosition
+            ) {
+                player.seekTo(timeline.getLastWindowIndex(shuffle), C.TIME_UNSET)
+                return SessionResult.RESULT_INFO_SKIPPED
+            }
+        }
+        return super.onPlayerCommandRequest(session, controller, playerCommand)
+    }
+
+    override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {""",
+        marker="override fun onPlayerCommandRequest",
+    ))
+
+    # ------------------------------------------------------------------
+    # 9d. Resume after another app's audio ends (extras FocusResumer).
+    #     Installed on the ExoPlayer, released with the service.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        service,
+        anchor="""    private lateinit var handler: Handler
+""",
+        replacement="""    private lateinit var handler: Handler
+    private var focusResumer: org.akanework.gramophone.extras.player.FocusResumer? = null
+""",
+        marker="focusResumer:",
+    ))
+    steps.append(patch(
+        service,
+        anchor="""        player.exoPlayer.addAnalyticsListener(EventLogger())""",
+        replacement="""        // :extras — resume once another app is done with the speaker
+        // (Behaviour › "Resume after other apps finish playing").
+        focusResumer = org.akanework.gramophone.extras.player.FocusResumer(this, player.exoPlayer)
+            .also { it.attach() }
+        player.exoPlayer.addAnalyticsListener(EventLogger())""",
+        marker="FocusResumer(this",
+    ))
+    steps.append(patch(
+        service,
+        anchor="""        Log.i(TAG, "+onDestroy()")
+        instanceForWidgetAndLyricsOnly = null""",
+        replacement="""        Log.i(TAG, "+onDestroy()")
+        instanceForWidgetAndLyricsOnly = null
+        focusResumer?.release()
+        focusResumer = null""",
+        marker="focusResumer?.release()",
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_behavior.xml",
+        anchor="""        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="stopPlayingWhenDismissTask"
+            android:layout="@layout/preference_switch"
+            android:summary="@string/settings_stop_on_dismiss_summary"
+            android:title="@string/settings_stop_on_dismiss"
+            android:widgetLayout="@layout/preference_switch_widget"
+            app:iconSpaceReserved="false" />""",
+        replacement="""        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="stopPlayingWhenDismissTask"
+            android:layout="@layout/preference_switch"
+            android:summary="@string/settings_stop_on_dismiss_summary"
+            android:title="@string/settings_stop_on_dismiss"
+            android:widgetLayout="@layout/preference_switch_widget"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="extras_resume_after_interruption"
+            android:layout="@layout/preference_switch"
+            android:summary="@string/extras_resume_summary"
+            android:title="@string/extras_resume_title"
+            android:widgetLayout="@layout/preference_switch_widget"
+            app:iconSpaceReserved="false" />""",
+        marker="extras_resume_after_interruption",
+    ))
+
+    # ------------------------------------------------------------------
+    # 9e. Upstream's Android 14 workaround cancels the media notification
+    #     whenever MainActivity is destroyed while paused (media3 #805 — the
+    #     service's onDestroy is not called after a swipe from recents).
+    #     Destroyed for memory in the background is not that case, and it
+    #     took a paused-but-alive session's notification with it. Limit it
+    #     to a real finish.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "ui" / "MainActivity.kt",
+        anchor="""        if (needsMissingOnDestroyCallWorkarounds()
+            && (getPlayer()?.playWhenReady != true || getPlayer()?.mediaItemCount == 0)""",
+        replacement="""        if (needsMissingOnDestroyCallWorkarounds() && isFinishing
+            && (getPlayer()?.playWhenReady != true || getPlayer()?.mediaItemCount == 0)""",
+        marker="needsMissingOnDestroyCallWorkarounds() && isFinishing",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

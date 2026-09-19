@@ -263,7 +263,7 @@ Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Verifying without the Android SDK
 
-`./verify.sh` compiles the module and runs all 92 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 98 unit tests using only Maven
 Central — a real `android.jar` (Robolectric publishes full framework jars), the
 actual youtubedl-android classes from its published `.aar`, and two tiny local
 stubs for the androidx symbols, since androidx is published only on Google's
@@ -307,7 +307,7 @@ extras/                    the new Gradle module
       LibraryScanner.kt    MediaStore query and orchestration
       FilterWatcher.kt     opt-in re-scan when new audio appears
       ui/FilterActivity.kt Compose settings + review screen
-  src/test/java/.../       92 unit tests
+  src/test/java/.../       98 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```
@@ -331,5 +331,7 @@ makes pulling upstream changes practical.
   tokens. The bundled quickjs handles many JS challenges, but some videos may
   need cookies or a token provider. This is the most likely thing to need
   attention over time, and it's a yt-dlp-side problem rather than an app one.
-- **Opus cover art is best-effort.** Embedding pictures in Ogg/Opus is awkward;
-  M4A and MP3 are reliable.
+- **Opus gets no embedded cover art at all.** Ogg/Opus stores artwork as a
+  base64 `METADATA_BLOCK_PICTURE` in the comment header, which ffmpeg cannot
+  write from an image input. Those downloads arrive correctly tagged but
+  artless, and the format picker says so. M4A and MP3 both carry covers fine.

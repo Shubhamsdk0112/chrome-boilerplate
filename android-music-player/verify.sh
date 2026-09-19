@@ -129,7 +129,8 @@ java -cp "out:$CP:kotlinc/lib/kotlin-stdlib.jar" org.junit.runner.JUnitCore \
     org.akanework.gramophone.extras.importer.MetadataProbeTest \
     org.akanework.gramophone.extras.importer.DownloadErrorTest \
     org.akanework.gramophone.extras.importer.ArtworkMatchTest \
-    org.akanework.gramophone.extras.importer.PickOutputTest 2>&1 | grep -v "Picked up"
+    org.akanework.gramophone.extras.importer.PickOutputTest \
+    org.akanework.gramophone.extras.importer.AudioFormatTest 2>&1 | grep -v "Picked up"
 
 # These pull in Compose and androidx.core, which cannot be resolved here, so
 # only their syntax can be checked. Resolution errors are expected and ignored;

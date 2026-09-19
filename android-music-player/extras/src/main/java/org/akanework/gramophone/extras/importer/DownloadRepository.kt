@@ -51,24 +51,36 @@ enum class AudioFormat(
     val selector: String,
     val label: String,
     val summary: String,
+    /**
+     * Whether a cover image can be embedded in this container.
+     *
+     * Ogg/Opus stores artwork as a base64 METADATA_BLOCK_PICTURE in the comment
+     * header, which ffmpeg cannot write from an image input, so those downloads
+     * arrive with tags but no cover. The picker says so rather than letting
+     * someone pick Opus and quietly get an artless library.
+     */
+    val supportsCoverArt: Boolean,
 ) {
     M4A(
         id = "m4a", extension = "m4a",
         selector = "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best",
         label = "M4A / AAC",
-        summary = "Recommended — no re-encode, best quality",
+        summary = "Recommended — no re-encode, best quality, album art",
+        supportsCoverArt = true,
     ),
     OPUS(
         id = "opus", extension = "opus",
         selector = "bestaudio[ext=webm][acodec=opus]/bestaudio[acodec=opus]/bestaudio/best",
         label = "Opus",
-        summary = "Smallest files, no re-encode",
+        summary = "Smallest files, no re-encode — but no embedded album art",
+        supportsCoverArt = false,
     ),
     MP3(
         id = "mp3", extension = "mp3",
         selector = "bestaudio/best",
         label = "MP3",
         summary = "Re-encoded — only for players that need it",
+        supportsCoverArt = true,
     );
 
     companion object {

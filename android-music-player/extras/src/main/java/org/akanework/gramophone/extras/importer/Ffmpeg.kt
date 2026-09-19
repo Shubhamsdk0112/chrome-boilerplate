@@ -40,9 +40,6 @@ object Ffmpeg {
     private const val TAG = "Ffmpeg"
     private const val TIMEOUT_SECONDS = 180L
 
-    /** Formats we know how to attach a cover to. */
-    private val COVER_CAPABLE = setOf("m4a", "mp3", "mp4", "flac")
-
     /**
      * Rewrites [audio] with [cover] attached and [meta] applied.
      *
@@ -64,7 +61,9 @@ object Ffmpeg {
         }
 
         val extension = audio.extension.lowercase()
-        val attachCover = cover != null && cover.length() > 0 && extension in COVER_CAPABLE
+        // Single source of truth: the same flag the format picker shows the user.
+        val attachCover = cover != null && cover.length() > 0 &&
+            AudioFormat.entries.firstOrNull { it.extension == extension }?.supportsCoverArt != false
         val output = File(audio.parentFile, "tagged_${audio.name}")
 
         val args = buildList {

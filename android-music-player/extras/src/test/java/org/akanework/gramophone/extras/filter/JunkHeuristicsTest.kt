@@ -374,6 +374,23 @@ class JunkHeuristicsTest {
     }
 
     @Test
+    fun `long audio is a podcast, not a song, when that rule is on`() {
+        val mix = candidate(
+            "/storage/emulated/0/Music/Live Set 2024.mp3",
+            title = "Live Set 2024", artist = "Some DJ", album = "Sets",
+            durationMs = 72 * 60_000L, sizeBytes = 100_000_000,
+        )
+        assertTrue(judge(mix) != Judgement.JUNK)
+        val verdict = JunkHeuristics.classify(mix, FilterOptions(hideLongAudio = true))
+        assertEquals(Judgement.JUNK, verdict.judgement)
+        assertTrue(verdict.reason, verdict.reason.contains("Podcasts"))
+        // A normal-length song is untouched by the rule.
+        val song = candidate("/storage/emulated/0/Music/Song.mp3", title = "Song", artist = "Band",
+            durationMs = 240_000, sizeBytes = 8_000_000)
+        assertTrue(judge(song, FilterOptions(hideLongAudio = true)) != Judgement.JUNK)
+    }
+
+    @Test
     fun `turning the voice-note rules off keeps whatsapp audio`() {
         val c = candidate(
             "/storage/emulated/0/WhatsApp/Media/WhatsApp Audio/AUD-20240102-WA0007.opus",

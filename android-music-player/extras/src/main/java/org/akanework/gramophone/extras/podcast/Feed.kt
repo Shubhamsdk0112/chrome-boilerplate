@@ -34,6 +34,18 @@ data class Podcast(
     val refreshedAt: Long,
 )
 
+/** A named section of an episode, as YouTube or a feed describes it. */
+data class Chapter(val title: String, val startMs: Long, val endMs: Long)
+
+/** Where an episode came from; decides what Play and Download mean for it. */
+object EpisodeSource {
+    const val RSS = "rss"
+    /** Downloaded from YouTube by yt-dlp; cannot be streamed, only re-downloaded. */
+    const val YOUTUBE = "youtube"
+    /** A long file already on the phone, read straight from MediaStore. */
+    const val LOCAL = "local"
+}
+
 data class Episode(
     /** Stable id from the feed; falls back to the audio URL. */
     val guid: String,
@@ -44,7 +56,16 @@ data class Episode(
     val durationSeconds: Int,
     val imageUrl: String?,
     val description: String?,
+    val chapters: List<Chapter> = emptyList(),
+    val source: String = EpisodeSource.RSS,
 ) {
+    /** Whether Play can start without a downloaded file. */
+    val streamable: Boolean get() = source != EpisodeSource.YOUTUBE
+
+    /** The chapter that contains [positionMs], if the episode has chapters. */
+    fun chapterAt(positionMs: Long): Chapter? =
+        chapters.lastOrNull { it.startMs <= positionMs }
+
     /** What the audio URL says the file is, for the download's extension. */
     val extension: String
         get() {

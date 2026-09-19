@@ -220,6 +220,16 @@ private fun FilterScreen() {
                 }
                 item {
                     SwitchRow(
+                        title = stringResource(R.string.filter_long_audio),
+                        subtitle = stringResource(R.string.filter_long_audio_summary),
+                        checked = options.hideLongAudio,
+                        onChange = {
+                            options = options.copy(hideLongAudio = it); store.options = options
+                        },
+                    )
+                }
+                item {
+                    SwitchRow(
                         title = stringResource(R.string.filter_podcasts),
                         subtitle = stringResource(R.string.filter_podcasts_summary),
                         checked = options.hidePodcastsAndAudiobooks,

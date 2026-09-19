@@ -39,6 +39,9 @@
     <string name="ytdlp_pacing_cautious">Cautious</string>
     <string name="ytdlp_pacing_off_detail">No pauses. Fine for one or two songs.</string>
     <string name="ytdlp_pacing_detail">%1$d–%2$d seconds between songs</string>
+    <string name="ytdlp_long_to_podcasts">Videos over 10 min go to Podcasts</string>
+    <string name="ytdlp_done_podcast">Saved to Podcasts</string>
+    <string name="ytdlp_done_podcast_chapters">Saved to Podcasts · %1$d chapters</string>
     <string name="ytdlp_nothing_to_paste">Nothing on the clipboard looks like a link</string>
 
     <!-- yt-dlp maintenance -->
@@ -57,7 +60,15 @@
 
     <!-- ============ Podcasts ============ -->
     <string name="podcast_title">Podcasts</string>
-    <string name="podcast_search_hint">Search shows, or paste an RSS link</string>
+    <string name="podcast_search_hint">Search shows, or paste a YouTube or RSS link</string>
+    <string name="podcast_youtube_queued">Downloading to Podcasts — with chapters if the video has them</string>
+    <string name="podcast_downloading">Downloading</string>
+    <string name="podcast_preparing">Preparing…</string>
+    <string name="podcast_local">On this phone</string>
+    <string name="podcast_chapter_count">%1$d chapters</string>
+    <string name="podcast_show_chapters">Chapters</string>
+    <string name="podcast_hide_chapters">Hide chapters</string>
+    <string name="podcast_needs_download">Not on this phone any more — download it again to play</string>
     <string name="podcast_results">Results</string>
     <string name="podcast_following">Following</string>
     <string name="podcast_follow">Follow</string>
@@ -67,7 +78,7 @@
     <string name="podcast_no_results">No shows found</string>
     <string name="podcast_refresh">Refresh</string>
     <string name="podcast_refresh_failed">%1$d feed(s) could not be refreshed</string>
-    <string name="podcast_empty">Search for a show above, or paste the RSS link of any podcast.\n\nEpisodes can be streamed straight away or downloaded to listen offline. Your place in each episode is remembered.</string>
+    <string name="podcast_empty">Search for a show, paste a YouTube link to save a long video here with its chapters, or paste an RSS link to follow a podcast.\n\nEpisodes can be streamed or downloaded. Your place in each one is remembered.</string>
     <string name="podcast_episode_count">%1$d episodes</string>
     <string name="podcast_play">Play</string>
     <string name="podcast_resume">Resume</string>
@@ -103,6 +114,8 @@
     <string name="filter_video">Video files</string>
     <string name="filter_short">Short untagged clips</string>
     <string name="filter_short_summary">Under 30 seconds with no artist or album. Tagged short tracks are kept.</string>
+    <string name="filter_long_audio">Long audio (10 min and over)</string>
+    <string name="filter_long_audio_summary">Audiobooks, mixes, recorded talks. Still playable under Podcasts › On this phone.</string>
     <string name="filter_podcasts">Podcasts and audiobooks</string>
     <string name="filter_podcasts_summary">Off by default — these are real audio, just not songs</string>
 

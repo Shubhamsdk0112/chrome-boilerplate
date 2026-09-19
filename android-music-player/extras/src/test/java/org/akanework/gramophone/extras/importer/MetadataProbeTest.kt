@@ -19,6 +19,7 @@ package org.akanework.gramophone.extras.importer
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -129,5 +130,25 @@ class MetadataProbeTest {
         val result = clean("Daft Punk - Get Lucky")
         assertEquals("Daft Punk - Get Lucky", result.displayName)
         assertEquals("Daft Punk Get Lucky", result.searchQuery)
+    }
+
+    @Test
+    fun `youtube chapters json becomes sorted chapters, junk becomes none`() {
+        val chapters = MetadataProbe.parseChapters(
+            """[{"start_time":61.5,"end_time":300,"title":"Guest intro"},{"start_time":0,"end_time":61.5,"title":"Cold open"},{"start_time":300,"end_time":900,"title":""}]"""
+        )
+        assertEquals(listOf("Cold open", "Guest intro", "Chapter 3"), chapters.map { it.title })
+        assertEquals(61_500L, chapters[1].startMs)
+        assertEquals(300_000L, chapters[1].endMs)
+        assertTrue(MetadataProbe.parseChapters("NA").isEmpty())
+        assertTrue(MetadataProbe.parseChapters(null).isEmpty())
+        assertTrue(MetadataProbe.parseChapters("null").isEmpty())
+    }
+
+    @Test
+    fun `upload dates are YYYYMMDD or nothing`() {
+        assertTrue(MetadataProbe.parseUploadDate("20260918") > 0)
+        assertEquals(0L, MetadataProbe.parseUploadDate("2026-09-18"))
+        assertEquals(0L, MetadataProbe.parseUploadDate(null))
     }
 }

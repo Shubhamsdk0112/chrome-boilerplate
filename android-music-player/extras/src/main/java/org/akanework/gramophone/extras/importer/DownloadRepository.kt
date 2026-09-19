@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.akanework.gramophone.extras.podcast.Episode
 import org.akanework.gramophone.extras.podcast.EpisodeDownloader
+import org.akanework.gramophone.extras.podcast.EpisodeSource
 import org.akanework.gramophone.extras.podcast.Podcast
 import org.akanework.gramophone.extras.podcast.PodcastSearch
 import org.akanework.gramophone.extras.podcast.PodcastStore
@@ -112,6 +113,11 @@ sealed interface JobStage {
         val uri: Uri?,
         val artworkSource: String?,
         val alreadyImported: Boolean = false,
+        /** Saved under Podcasts rather than the song library. */
+        val podcast: Boolean = false,
+        val chapters: Int = 0,
+        /** Podcast jobs: the episode's guid, for tap-to-play. */
+        val episodeGuid: String? = null,
     ) : JobStage
     data class Failed(val message: String) : JobStage
     data object Cancelled : JobStage
@@ -143,6 +149,8 @@ data class DownloadJob(
     val episodeGuid: String? = null,
     /** How many automatic retries this job has already had. */
     val attempts: Int = 0,
+    /** YouTube jobs: the user asked for a podcast episode regardless of length. */
+    val asPodcast: Boolean = false,
 ) {
     val label: String get() = title ?: url
 }
@@ -208,7 +216,7 @@ class DownloadRepository(private val context: Context) {
         }
     }
 
-    fun enqueue(url: String, format: AudioFormat): String {
+    fun enqueue(url: String, format: AudioFormat, asPodcast: Boolean = false): String {
         val trimmed = url.trim()
         // A link that is already in flight (a double tap on Share, or the
         // YouTube app resending it) must not queue the song twice. A finished
@@ -216,7 +224,7 @@ class DownloadRepository(private val context: Context) {
         _jobs.value.firstOrNull { it.url == trimmed && !it.stage.isTerminal }
             ?.let { return it.id }
         val id = UUID.randomUUID().toString()
-        _jobs.value += DownloadJob(id = id, url = trimmed, format = format)
+        _jobs.value += DownloadJob(id = id, url = trimmed, format = format, asPodcast = asPodcast)
         scheduleSave()
         queue.trySend(id)
         return id
@@ -309,7 +317,14 @@ class DownloadRepository(private val context: Context) {
         val old = _jobs.value.firstOrNull { it.id == jobId } ?: return
         if (!old.stage.isTerminal) return
         _jobs.value = _jobs.value.filterNot { it.id == jobId }
-        enqueue(old.url, old.format)
+        if (old.kind == JobKind.PODCAST) {
+            val store = PodcastStore.get(context)
+            val podcast = old.feedUrl?.let { store.podcast(it) }
+            val episode = old.episodeGuid?.let { store.episode(it) }
+            if (podcast != null && episode != null) enqueueEpisode(podcast, episode) else enqueue(old.url, old.format)
+        } else {
+            enqueue(old.url, old.format, old.asPodcast)
+        }
     }
 
     // ------------------------------------------------------------------
@@ -352,6 +367,15 @@ class DownloadRepository(private val context: Context) {
                 fetch(job, workDir) ?: return
             }
             if (currentStage(jobId) is JobStage.Cancelled) return
+
+            // A long video is not a song. It goes to the Podcasts section:
+            // its own storage (never the music library), its chapters kept,
+            // resumable playback. Also whenever the user asked for that.
+            val longVideo = meta.durationSeconds >= PodcastStore.LONG_AUDIO_MINUTES * 60
+            if (job.asPodcast || (longVideo && Pacing.longVideosToPodcasts(context))) {
+                importAsEpisode(job, meta, audio, workDir)
+                return
+            }
 
             // --- artwork --------------------------------------------------
             update(jobId) { it.copy(stage = JobStage.FindingArtwork) }
@@ -399,6 +423,80 @@ class DownloadRepository(private val context: Context) {
         } finally {
             // Keep the .part when a retry is pending; yt-dlp resumes from it.
             if (currentStage(jobId) !is JobStage.Retrying) workDir.deleteRecursively()
+        }
+    }
+
+    /**
+     * A YouTube download that is a podcast episode rather than a song: the
+     * channel becomes the show, the video its episode, chapters and all. The
+     * file lives under the app's Podcasts directory and the song library never
+     * sees it.
+     */
+    private suspend fun importAsEpisode(job: DownloadJob, meta: TrackMetadata, audio: File, workDir: File) {
+        val jobId = job.id
+        update(jobId) { it.copy(stage = JobStage.FindingArtwork) }
+        val artwork = ArtworkFinder.thumbnailOnly(meta)
+        val coverFile = artwork?.let { File(workDir, "cover.jpg").apply { writeBytes(it.jpeg) } }
+
+        update(jobId) { it.copy(stage = JobStage.Tagging) }
+        val showTitle = meta.channel ?: meta.artist ?: "YouTube"
+        val tagged = Ffmpeg.applyCoverAndTags(
+            context = context,
+            audio = audio,
+            cover = coverFile,
+            meta = meta.copy(title = meta.rawTitle, artist = showTitle, album = showTitle),
+            artwork = artwork,
+        )
+
+        update(jobId) { it.copy(stage = JobStage.Importing) }
+        val store = PodcastStore.get(context)
+        store.loaded.first { it }
+        val feedUrl = PodcastStore.YOUTUBE_FEED_PREFIX + (meta.channelId ?: showTitle)
+        val show = store.podcast(feedUrl) ?: Podcast(
+            feedUrl = feedUrl,
+            title = showTitle,
+            author = null,
+            imageUrl = meta.thumbnailUrl,
+            description = null,
+            episodes = emptyList(),
+            refreshedAt = System.currentTimeMillis(),
+        )
+        val episode = Episode(
+            guid = "yt:${meta.videoId}",
+            feedUrl = feedUrl,
+            title = meta.rawTitle,
+            audioUrl = job.url,
+            publishedAt = meta.uploadedAt.takeIf { it > 0 } ?: System.currentTimeMillis(),
+            durationSeconds = meta.durationSeconds,
+            imageUrl = meta.thumbnailUrl,
+            description = null,
+            chapters = meta.chapters,
+            source = EpisodeSource.YOUTUBE,
+        )
+        val target = store.targetFile(show, episode).let { wanted ->
+            // Keep the extension yt-dlp produced (m4a/opus/mp3), not the URL's.
+            File(wanted.parentFile, wanted.nameWithoutExtension + "." + tagged.extension.ifBlank { job.format.extension })
+        }
+        withContext(Dispatchers.IO) {
+            target.parentFile?.mkdirs()
+            if (target.exists()) target.delete()
+            if (!tagged.renameTo(target)) {
+                tagged.copyTo(target, overwrite = true)
+                tagged.delete()
+            }
+        }
+        store.upsertEpisode(show, episode)
+        store.recordDownload(episode.guid, target)
+        ImportIndex.record(context, meta.videoId, Uri.fromFile(target))
+        update(jobId) {
+            it.copy(
+                title = episode.title,
+                artist = showTitle,
+                stage = JobStage.Done(
+                    Uri.fromFile(target), null,
+                    podcast = true, chapters = episode.chapters.size, episodeGuid = episode.guid,
+                ),
+            )
         }
     }
 

@@ -21,6 +21,7 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
+import org.akanework.gramophone.extras.podcast.Chapter
 import kotlinx.coroutines.withContext
 
 /** Tags we will write onto the imported file. */
@@ -34,6 +35,12 @@ data class TrackMetadata(
     val thumbnailUrl: String?,
     /** The untouched video title, kept for display and for artwork searching. */
     val rawTitle: String,
+    /** YouTube's own chapter markers, when the uploader set them. */
+    val chapters: List<Chapter> = emptyList(),
+    val channelId: String? = null,
+    val channel: String? = null,
+    /** Upload date, epoch ms, or 0 when unknown. */
+    val uploadedAt: Long = 0L,
 ) {
     /** `Artist - Title`, or just the title when the artist is unknown. */
     val displayName: String
@@ -68,6 +75,10 @@ object MetadataProbe {
         "%(thumbnail|)s",
         "%(title|)s",
         "%(uploader|)s",
+        "%(chapters)j",
+        "%(channel_id|)s",
+        "%(channel|)s",
+        "%(upload_date|)s",
     ).joinToString(SEP)
 
     suspend fun probe(url: String): TrackMetadata = withContext(Dispatchers.IO) {
@@ -113,7 +124,43 @@ object MetadataProbe {
             thumbnail = field(6),
             rawTitle = rawTitle,
             uploader = uploader,
+        ).copy(
+            chapters = parseChapters(field(9)),
+            channelId = field(10),
+            channel = field(11),
+            uploadedAt = parseUploadDate(field(12)),
         )
+    }
+
+    /** yt-dlp's `chapters` field as JSON: `[{"start_time":0,"end_time":61,"title":"Intro"}]`. */
+    internal fun parseChapters(json: String?): List<Chapter> {
+        val text = json?.trim().orEmpty()
+        if (!text.startsWith("[")) return emptyList()
+        return runCatching {
+            val array = org.json.JSONArray(text)
+            (0 until array.length()).mapNotNull { i ->
+                val o = array.getJSONObject(i)
+                val start = (o.optDouble("start_time", -1.0) * 1000).toLong()
+                val end = (o.optDouble("end_time", -1.0) * 1000).toLong()
+                if (start < 0) return@mapNotNull null
+                Chapter(
+                    title = o.optString("title").ifBlank { "Chapter ${i + 1}" },
+                    startMs = start,
+                    endMs = if (end > start) end else start,
+                )
+            }.sortedBy { it.startMs }
+        }.getOrDefault(emptyList())
+    }
+
+    /** yt-dlp's upload_date is `YYYYMMDD`. */
+    internal fun parseUploadDate(raw: String?): Long {
+        val s = raw?.trim().orEmpty()
+        if (s.length != 8 || !s.all { it.isDigit() }) return 0L
+        return runCatching {
+            java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.parse(s)?.time ?: 0L
+        }.getOrDefault(0L)
     }
 
     // Junk that decorates almost every music upload but belongs in no tag.

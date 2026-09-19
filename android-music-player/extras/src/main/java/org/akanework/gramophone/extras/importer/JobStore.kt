@@ -79,12 +79,16 @@ internal object JobStore {
         put("feedUrl", job.feedUrl)
         put("episodeGuid", job.episodeGuid)
         put("attempts", job.attempts)
+        put("asPodcast", job.asPodcast)
         when (val s = job.stage) {
             is JobStage.Done -> {
                 put("stage", "done")
                 put("uri", s.uri?.toString())
                 put("artworkSource", s.artworkSource)
                 put("alreadyImported", s.alreadyImported)
+                put("podcast", s.podcast)
+                put("chapters", s.chapters)
+                put("doneEpisodeGuid", s.episodeGuid)
             }
             is JobStage.Failed -> {
                 put("stage", "failed")
@@ -105,6 +109,9 @@ internal object JobStore {
                 uri = o.optString("uri").takeIf { it.isNotBlank() }?.let(Uri::parse),
                 artworkSource = o.optString("artworkSource").takeIf { it.isNotBlank() },
                 alreadyImported = o.optBoolean("alreadyImported", false),
+                podcast = o.optBoolean("podcast", false),
+                chapters = o.optInt("chapters", 0),
+                episodeGuid = o.optString("doneEpisodeGuid").takeIf { it.isNotBlank() },
             )
             "failed" -> JobStage.Failed(o.optString("message").ifBlank { "The download failed." })
             "cancelled" -> JobStage.Cancelled
@@ -124,6 +131,7 @@ internal object JobStore {
             feedUrl = o.optString("feedUrl").takeIf { it.isNotBlank() },
             episodeGuid = o.optString("episodeGuid").takeIf { it.isNotBlank() },
             attempts = o.optInt("attempts", 0),
+            asPodcast = o.optBoolean("asPodcast", false),
         )
     }
 }

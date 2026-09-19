@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,6 +67,44 @@ object PodcastPlayer {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    /** The episode object behind [current], for chapter lookups. */
+    private val _currentEpisode = MutableStateFlow<Episode?>(null)
+    val currentEpisode: StateFlow<Episode?> = _currentEpisode.asStateFlow()
+
+    /** Finds an episode by guid across subscriptions and plays it. */
+    fun playGuid(context: Context, guid: String) {
+        val app = context.applicationContext
+        scope.launch {
+            val store = PodcastStore.get(app)
+            store.loaded.first { it }
+            val episode = store.episode(guid) ?: return@launch
+            val podcast = store.podcast(episode.feedUrl) ?: return@launch
+            play(app, podcast, episode)
+        }
+    }
+
+    fun seekTo(positionMs: Long) {
+        controller?.seekTo(positionMs.coerceAtLeast(0))
+    }
+
+    /** Jump to the previous/next chapter boundary of the current episode. */
+    fun skipChapter(forward: Boolean) {
+        val c = controller ?: return
+        val episode = _currentEpisode.value ?: return
+        if (episode.chapters.isEmpty()) return
+        val pos = c.currentPosition
+        val target = if (forward) {
+            episode.chapters.firstOrNull { it.startMs > pos + 500 }?.startMs
+        } else {
+            // Back to the start of this chapter, or the previous one if we are
+            // already near its start — the usual player convention.
+            val current = episode.chapterAt(pos)
+            if (current != null && pos - current.startMs > 3_000) current.startMs
+            else episode.chapters.lastOrNull { it.startMs < (current?.startMs ?: pos) }?.startMs ?: 0L
+        }
+        if (target != null) c.seekTo(target)
+    }
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
@@ -83,7 +122,7 @@ object PodcastPlayer {
      * Starts [episode] from its saved position. A downloaded file is used when
      * there is one; otherwise the episode streams from its feed URL.
      */
-    fun play(context: Context, podcast: Podcast, episode: Episode) {
+    fun play(context: Context, podcast: Podcast, episode: Episode, startMs: Long? = null) {
         val app = context.applicationContext
         scope.launch {
             val c = runCatching { connect(app) }
@@ -115,8 +154,9 @@ object PodcastPlayer {
                         .build(),
                 )
                 .build()
-            val position = store.position(episode.guid)
+            val position = startMs ?: store.position(episode.guid)
             _current.value = episode.guid
+            _currentEpisode.value = episode
             c.setMediaItem(item, position)
             c.prepare()
             c.play()

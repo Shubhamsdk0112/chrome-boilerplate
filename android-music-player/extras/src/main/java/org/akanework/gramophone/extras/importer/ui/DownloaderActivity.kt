@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
@@ -107,6 +108,7 @@ import org.akanework.gramophone.extras.importer.DownloadService
 import org.akanework.gramophone.extras.importer.JobStage
 import org.akanework.gramophone.extras.importer.Pacing
 import org.akanework.gramophone.extras.importer.YtDlp
+import org.akanework.gramophone.extras.podcast.PodcastPlayer
 import org.akanework.gramophone.extras.ui.ExtrasTheme
 
 /**
@@ -179,6 +181,8 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
     val format = AudioFormat.fromId(formatId)
     var menuOpen by remember { mutableStateOf(false) }
     var pacingOpen by remember { mutableStateOf(false) }
+    var longToPodcasts by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) { longToPodcasts = withContext(Dispatchers.IO) { Pacing.longVideosToPodcasts(context) } }
     // First touch of a preferences file is a disk read; keep it off main.
     var pacing by remember { mutableStateOf(Pacing.SAFE) }
     LaunchedEffect(Unit) { pacing = withContext(Dispatchers.IO) { Pacing.read(context) } }
@@ -264,6 +268,16 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.ytdlp_pacing_menu, pacingLabel(pacing))) },
                             onClick = { menuOpen = false; pacingOpen = true },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ytdlp_long_to_podcasts)) },
+                            trailingIcon = {
+                                Checkbox(checked = longToPodcasts, onCheckedChange = null)
+                            },
+                            onClick = {
+                                longToPodcasts = !longToPodcasts
+                                scope.launch(Dispatchers.IO) { Pacing.setLongVideosToPodcasts(context, longToPodcasts) }
+                            },
                         )
                         if (jobs.any { it.stage is JobStage.Failed }) {
                             DropdownMenuItem(
@@ -483,6 +497,7 @@ private fun JobCard(
     // A finished song opens in the player; nothing else has a tap. A disabled
     // clickable Card would dim its content, so the others are plain Cards.
     val playable = done?.uri
+    val podcastGuid = done?.takeIf { it.podcast }?.episodeGuid
     val content: @Composable () -> Unit = {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -543,6 +558,12 @@ private fun JobCard(
             modifier = modifier.fillMaxWidth(),
             colors = cardColors,
             onClick = {
+                if (podcastGuid != null) {
+                    // An episode plays through the podcast player, with its
+                    // chapters and saved position.
+                    PodcastPlayer.playGuid(context, podcastGuid)
+                    return@Card
+                }
                 // Off the main thread on purpose: starting an activity with a
                 // content:// URI makes the system ask MediaProvider to check
                 // it, and that SQLite read is reported back over binder to the
@@ -604,6 +625,8 @@ private fun StatusLine(stage: JobStage) {
         }
         is JobStage.Done -> {
             val label = when {
+                stage.podcast && stage.chapters > 0 -> stringResource(R.string.ytdlp_done_podcast_chapters, stage.chapters)
+                stage.podcast -> stringResource(R.string.ytdlp_done_podcast)
                 stage.alreadyImported -> stringResource(R.string.ytdlp_already_imported)
                 stage.artworkSource != null ->
                     stringResource(R.string.ytdlp_done_with_art, stage.artworkSource)

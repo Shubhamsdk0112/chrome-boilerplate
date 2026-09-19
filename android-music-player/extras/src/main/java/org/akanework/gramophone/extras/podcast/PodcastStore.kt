@@ -17,7 +17,10 @@
 
 package org.akanework.gramophone.extras.podcast
 
+import android.content.ContentUris
 import android.content.Context
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -86,6 +90,38 @@ class PodcastStore private constructor(private val context: Context) {
 
     fun podcast(feedUrl: String): Podcast? = _podcasts.value.firstOrNull { it.feedUrl == feedUrl }
 
+    /**
+     * Adds one episode to a show, creating the show when it is new. Used for
+     * YouTube downloads, where "the show" is the channel.
+     */
+    fun upsertEpisode(show: Podcast, episode: Episode) {
+        _podcasts.update { list ->
+            val existing = list.firstOrNull { it.feedUrl == show.feedUrl }
+            val merged = if (existing == null) {
+                show.copy(episodes = listOf(episode))
+            } else {
+                existing.copy(
+                    imageUrl = existing.imageUrl ?: show.imageUrl,
+                    episodes = (listOf(episode) + existing.episodes.filterNot { it.guid == episode.guid })
+                        .sortedByDescending { it.publishedAt }
+                        .take(MAX_EPISODES),
+                    refreshedAt = System.currentTimeMillis(),
+                )
+            }
+            list.filterNot { it.feedUrl == show.feedUrl } + merged
+        }
+        persist()
+    }
+
+    fun removeEpisode(feedUrl: String, guid: String) {
+        _podcasts.update { list ->
+            list.map { p ->
+                if (p.feedUrl != feedUrl) p else p.copy(episodes = p.episodes.filterNot { it.guid == guid })
+            }.filterNot { it.episodes.isEmpty() && it.feedUrl.startsWith(YOUTUBE_FEED_PREFIX) }
+        }
+        persist()
+    }
+
     fun episode(guid: String): Episode? =
         _podcasts.value.asSequence().flatMap { it.episodes.asSequence() }.firstOrNull { it.guid == guid }
 
@@ -110,6 +146,55 @@ class PodcastStore private constructor(private val context: Context) {
         _positions.update { it + (guid to rounded) }
         persist()
     }
+
+    /**
+     * Long audio already on the phone — audiobooks, mixes, recorded talks —
+     * as a virtual show, read fresh from MediaStore. These play straight from
+     * their content URI and are never persisted here.
+     */
+    suspend fun localLongAudio(minMinutes: Int = LONG_AUDIO_MINUTES): Podcast? =
+        withContext(Dispatchers.IO) {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            }
+            val projection = arrayOf(
+                MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.DATE_ADDED,
+            )
+            val episodes = mutableListOf<Episode>()
+            runCatching {
+                context.contentResolver.query(
+                    uri, projection, "${MediaStore.Audio.Media.DURATION} >= ?",
+                    arrayOf((minMinutes * 60_000L).toString()), "${MediaStore.Audio.Media.DATE_ADDED} DESC",
+                )?.use { c ->
+                    val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                    val artistCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                    val durCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                    val addedCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                    while (c.moveToNext()) {
+                        val id = c.getLong(idCol)
+                        val item = ContentUris.withAppendedId(uri, id)
+                        episodes += Episode(
+                            guid = "local:$id",
+                            feedUrl = LOCAL_FEED,
+                            title = c.getString(titleCol) ?: "Untitled",
+                            audioUrl = item.toString(),
+                            publishedAt = c.getLong(addedCol) * 1000,
+                            durationSeconds = (c.getLong(durCol) / 1000).toInt(),
+                            imageUrl = null,
+                            description = c.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" },
+                            source = EpisodeSource.LOCAL,
+                        )
+                    }
+                }
+            }.onFailure { Log.w(TAG, "could not list long audio", it) }
+            if (episodes.isEmpty()) null
+            else Podcast(LOCAL_FEED, "On this phone", null, null, null, episodes, System.currentTimeMillis())
+        }
 
     /** Where an episode's file goes. Show and title become safe path segments. */
     fun targetFile(podcast: Podcast, episode: Episode): File {
@@ -174,6 +259,14 @@ class PodcastStore private constructor(private val context: Context) {
                     put("durationSeconds", e.durationSeconds)
                     put("imageUrl", e.imageUrl)
                     put("description", e.description)
+                    put("source", e.source)
+                    if (e.chapters.isNotEmpty()) {
+                        put("chapters", JSONArray().also { ch ->
+                            e.chapters.forEach { c ->
+                                ch.put(JSONObject().apply { put("title", c.title); put("startMs", c.startMs); put("endMs", c.endMs) })
+                            }
+                        })
+                    }
                 })
             }
         })
@@ -194,6 +287,13 @@ class PodcastStore private constructor(private val context: Context) {
                     durationSeconds = e.optInt("durationSeconds"),
                     imageUrl = e.optString("imageUrl").takeIf { it.isNotBlank() },
                     description = e.optString("description").takeIf { it.isNotBlank() },
+                    source = e.optString("source").ifBlank { EpisodeSource.RSS },
+                    chapters = e.optJSONArray("chapters")?.let { ch ->
+                        (0 until ch.length()).map { j ->
+                            val c = ch.getJSONObject(j)
+                            Chapter(c.optString("title"), c.optLong("startMs"), c.optLong("endMs"))
+                        }
+                    }.orEmpty(),
                 )
             }
         }.orEmpty()
@@ -211,6 +311,10 @@ class PodcastStore private constructor(private val context: Context) {
     companion object {
         private const val TAG = "PodcastStore"
         private const val MAX_EPISODES = 300
+        /** Anything this long is not a song; see the filter's long-audio rule. */
+        const val LONG_AUDIO_MINUTES = 10
+        const val LOCAL_FEED = "local:long-audio"
+        const val YOUTUBE_FEED_PREFIX = "yt:channel:"
 
         @Volatile
         private var instance: PodcastStore? = null

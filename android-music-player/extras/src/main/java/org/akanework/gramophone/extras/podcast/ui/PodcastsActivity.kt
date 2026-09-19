@@ -54,6 +54,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -73,6 +75,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -93,11 +96,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
+import org.akanework.gramophone.extras.importer.AudioFormat
 import org.akanework.gramophone.extras.importer.DownloadRepository
+import org.akanework.gramophone.extras.importer.DownloadService
 import org.akanework.gramophone.extras.importer.JobKind
 import org.akanework.gramophone.extras.importer.JobStage
 import org.akanework.gramophone.extras.podcast.Cover
 import org.akanework.gramophone.extras.podcast.Episode
+import org.akanework.gramophone.extras.podcast.EpisodeSource
 import org.akanework.gramophone.extras.podcast.Podcast
 import org.akanework.gramophone.extras.podcast.PodcastPlayer
 import org.akanework.gramophone.extras.podcast.PodcastSearch
@@ -126,12 +132,18 @@ private fun PodcastsRoot() {
     val podcasts by store.podcasts.collectAsStateWithLifecycle()
     var openFeed by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val open = openFeed?.let { url -> podcasts.firstOrNull { it.feedUrl == url } }
+    var localShow by remember { mutableStateOf<Podcast?>(null) }
+    val open = openFeed?.let { url ->
+        podcasts.firstOrNull { it.feedUrl == url } ?: localShow?.takeIf { it.feedUrl == url }
+    }
     if (open != null) {
         BackHandler { openFeed = null }
         ShowScreen(podcast = open, onBack = { openFeed = null })
     } else {
-        ShowsScreen(onOpen = { openFeed = it.feedUrl })
+        ShowsScreen(onOpen = { show ->
+            if (show.feedUrl == PodcastStore.LOCAL_FEED) localShow = show
+            openFeed = show.feedUrl
+        })
     }
 }
 
@@ -153,13 +165,27 @@ private fun ShowsScreen(onOpen: (Podcast) -> Unit) {
     var results by remember { mutableStateOf<List<SearchResult>?>(null) }
     var searching by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
+    val repository = remember { DownloadRepository.get(context) }
+    val jobs by repository.jobs.collectAsStateWithLifecycle()
+    val inFlight = jobs.filter { !it.stage.isTerminal && (it.kind == JobKind.PODCAST || it.asPodcast) }
+    // Long audio already on the phone, as a virtual show. Re-read whenever the
+    // screen comes back, so a file hidden by the filter shows up here.
+    var local by remember { mutableStateOf<Podcast?>(null) }
+    LaunchedEffect(Unit) { local = store.localLongAudio() }
 
     fun runSearch() {
         val q = query.trim()
         if (q.isEmpty()) { results = null; return }
         searching = true
         scope.launch {
-            if (q.startsWith("http://") || q.startsWith("https://")) {
+            if (isYouTube(q)) {
+                // A YouTube link: the video is downloaded as an episode, with
+                // its chapters, into this section. Progress shows below.
+                DownloadRepository.get(context).enqueue(q, AudioFormat.M4A, asPodcast = true)
+                DownloadService.ensureRunning(context)
+                query = ""; results = null
+                snackbars.showSnackbar(context.getString(R.string.podcast_youtube_queued))
+            } else if (q.startsWith("http://") || q.startsWith("https://")) {
                 // A pasted feed URL: fetch it and follow it straight away.
                 runCatching { PodcastSearch.fetchFeed(q) }
                     .onSuccess { store.subscribe(it); query = ""; results = null
@@ -263,9 +289,35 @@ private fun ShowsScreen(onOpen: (Podcast) -> Unit) {
                         )
                     }
                 }
+                if (inFlight.isNotEmpty()) {
+                    item { SectionTitle(stringResource(R.string.podcast_downloading), inFlight.size) }
+                    items(inFlight, key = { "job:" + it.id }) { job ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Column(Modifier.weight(1f)) {
+                                    Text(job.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    val stage = job.stage
+                                    Text(
+                                        when (stage) {
+                                            is JobStage.Downloading -> "${stage.progress.toInt()}%"
+                                            else -> stringResource(R.string.podcast_preparing)
+                                        },
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                IconButton(onClick = { repository.cancel(job.id) }) { Icon(Icons.Default.Close, contentDescription = null) }
+                            }
+                        }
+                    }
+                }
                 if (podcasts.isNotEmpty()) {
                     item { SectionTitle(stringResource(R.string.podcast_following), podcasts.size) }
                     items(podcasts, key = { it.feedUrl }) { p -> ShowRow(p, onClick = { onOpen(p) }) }
+                }
+                local?.let { show ->
+                    item { SectionTitle(stringResource(R.string.podcast_local), show.episodes.size) }
+                    item { ShowRow(show, onClick = { onOpen(show) }) }
                 }
             }
         }
@@ -346,7 +398,7 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
                 },
                 actions = {
-                    IconButton(
+                    if (podcast.feedUrl.startsWith("http")) IconButton(
                         onClick = {
                             refreshing = true
                             scope.launch {
@@ -361,7 +413,7 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                         if (refreshing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         else Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.podcast_refresh))
                     }
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
+                    if (podcast.feedUrl != PodcastStore.LOCAL_FEED) IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.podcast_unfollow)) },
@@ -409,8 +461,12 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
             item { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
 
             items(podcast.episodes, key = { it.guid }) { episode ->
-                val job = jobs.firstOrNull { it.kind == JobKind.PODCAST && it.episodeGuid == episode.guid && !it.stage.isTerminal }
-                val downloaded = downloads[episode.guid] != null
+                val job = jobs.firstOrNull {
+                    !it.stage.isTerminal &&
+                        ((it.kind == JobKind.PODCAST && it.episodeGuid == episode.guid) ||
+                            (it.asPodcast && it.url == episode.audioUrl))
+                }
+                val downloaded = episode.source == EpisodeSource.LOCAL || downloads[episode.guid] != null
                 EpisodeRow(
                     episode = episode,
                     downloaded = downloaded,
@@ -418,13 +474,21 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                     queued = job != null && job.stage !is JobStage.Downloading,
                     positionMs = positions[episode.guid] ?: 0L,
                     isCurrent = current == episode.guid,
-                    onPlay = { PodcastPlayer.play(context, podcast, episode) },
-                    onDownload = { repository.enqueueEpisode(podcast, episode) },
+                    onPlay = { startMs -> PodcastPlayer.play(context, podcast, episode, startMs) },
+                    onDownload = {
+                        if (episode.source == EpisodeSource.YOUTUBE) {
+                            repository.enqueue(episode.audioUrl, AudioFormat.M4A, asPodcast = true)
+                            DownloadService.ensureRunning(context)
+                        } else {
+                            repository.enqueueEpisode(podcast, episode)
+                        }
+                    },
                     onCancel = { job?.let { repository.cancel(it.id) } },
                     onDelete = {
                         scope.launch {
                             store.downloadedFile(episode.guid)?.delete()
                             store.forgetDownload(episode.guid)
+                            if (episode.source == EpisodeSource.YOUTUBE) store.removeEpisode(podcast.feedUrl, episode.guid)
                         }
                     },
                 )
@@ -441,14 +505,16 @@ private fun EpisodeRow(
     queued: Boolean,
     positionMs: Long,
     isCurrent: Boolean,
-    onPlay: () -> Unit,
+    onPlay: (startMs: Long?) -> Unit,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val colors = if (isCurrent) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     else CardDefaults.cardColors()
-    Card(modifier = Modifier.fillMaxWidth(), colors = colors, onClick = onPlay) {
+    val canPlay = downloaded || episode.streamable
+    var chaptersOpen by rememberSaveable(episode.guid) { mutableStateOf(false) }
+    Card(modifier = Modifier.fillMaxWidth(), colors = colors, onClick = { if (canPlay) onPlay(null) else onDownload() }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(episode.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val meta = buildList {
@@ -458,7 +524,8 @@ private fun EpisodeRow(
                     val left = episode.durationSeconds - (positionMs / 1000).toInt()
                     if (left > 60) add(stringResource(R.string.podcast_minutes_left, left / 60))
                 }
-                if (downloaded) add(stringResource(R.string.podcast_downloaded))
+                if (downloaded && episode.source != EpisodeSource.LOCAL) add(stringResource(R.string.podcast_downloaded))
+                if (episode.chapters.isNotEmpty()) add(stringResource(R.string.podcast_chapter_count, episode.chapters.size))
             }.joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (positionMs > 0 && episode.durationSeconds > 0) {
@@ -472,10 +539,23 @@ private fun EpisodeRow(
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Button(onClick = onPlay, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (positionMs > 0) stringResource(R.string.podcast_resume) else stringResource(R.string.podcast_play))
+                if (canPlay) {
+                    Button(onClick = { onPlay(null) }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (positionMs > 0) stringResource(R.string.podcast_resume) else stringResource(R.string.podcast_play))
+                    }
+                } else {
+                    Text(
+                        stringResource(R.string.podcast_needs_download),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (episode.chapters.isNotEmpty()) {
+                    TextButton(onClick = { chaptersOpen = !chaptersOpen }) {
+                        Text(if (chaptersOpen) stringResource(R.string.podcast_hide_chapters) else stringResource(R.string.podcast_show_chapters))
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 when {
@@ -498,6 +578,39 @@ private fun EpisodeRow(
             if (downloading != null) {
                 LinearProgressIndicator(progress = { downloading.progress / 100f }, modifier = Modifier.fillMaxWidth())
             }
+            if (chaptersOpen && episode.chapters.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(vertical = 2.dp))
+                val currentChapter = episode.chapterAt(positionMs)
+                episode.chapters.forEachIndexed { index, chapter ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = canPlay) { onPlay(chapter.startMs) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            formatClock(chapter.startMs),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.width(56.dp),
+                        )
+                        Text(
+                            chapter.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrent && chapter == currentChapter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "${index + 1}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -512,9 +625,11 @@ private fun NowPlayingBar() {
     val store = remember { PodcastStore.get(context) }
     val current by PodcastPlayer.current.collectAsStateWithLifecycle()
     val playing by PodcastPlayer.isPlaying.collectAsStateWithLifecycle()
-    val episode = current?.let { store.episode(it) }
+    val playerEpisode by PodcastPlayer.currentEpisode.collectAsStateWithLifecycle()
+    val episode = current?.let { id -> store.episode(id) ?: playerEpisode?.takeIf { it.guid == id } }
     var position by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
+    val chapter = episode?.chapterAt(position)
 
     LaunchedEffect(current, playing) {
         while (current != null) {
@@ -538,22 +653,41 @@ private fun NowPlayingBar() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(episode?.title.orEmpty(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(chapter?.title ?: episode?.title.orEmpty(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            "${formatClock(position)} / ${formatClock(duration)}",
+                            if (chapter != null) "${episode?.title.orEmpty()} · ${formatClock(position)}"
+                            else "${formatClock(position)} / ${formatClock(duration)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    IconButton(onClick = { PodcastPlayer.seekBy(-10_000) }) { Icon(Icons.Default.Replay10, contentDescription = null) }
-                    IconButton(onClick = { PodcastPlayer.togglePlayPause() }) {
+                    val hasChapters = !episode?.chapters.isNullOrEmpty()
+                    if (hasChapters) {
+                        IconButton(onClick = { PodcastPlayer.skipChapter(forward = false) }, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Default.SkipPrevious, contentDescription = null)
+                        }
+                    }
+                    IconButton(onClick = { PodcastPlayer.seekBy(-10_000) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Replay10, contentDescription = null) }
+                    IconButton(onClick = { PodcastPlayer.togglePlayPause() }, modifier = Modifier.size(40.dp)) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = null)
                     }
-                    IconButton(onClick = { PodcastPlayer.seekBy(30_000) }) { Icon(Icons.Default.Forward30, contentDescription = null) }
+                    IconButton(onClick = { PodcastPlayer.seekBy(30_000) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Forward30, contentDescription = null) }
+                    if (hasChapters) {
+                        IconButton(onClick = { PodcastPlayer.skipChapter(forward = true) }, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Default.SkipNext, contentDescription = null)
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private fun isYouTube(text: String): Boolean {
+    val t = text.lowercase()
+    return t.contains("youtube.com/") || t.contains("youtu.be/") || t.contains("music.youtube.com/")
 }
 
 private fun formatDuration(seconds: Int): String {

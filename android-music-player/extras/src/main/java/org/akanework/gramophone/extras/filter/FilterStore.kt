@@ -83,6 +83,7 @@ class FilterStore(context: Context) {
             hideRingtonesAndAlarms = own.getBoolean("hide_ringtones", true),
             hideVideoFiles = own.getBoolean("hide_video", true),
             hidePodcastsAndAudiobooks = own.getBoolean("hide_podcasts", false),
+            hideLongAudio = own.getBoolean("hide_long_audio", true),
             hideShortClips = own.getBoolean("hide_short", true),
             shortClipSeconds = own.getInt("short_seconds", 30),
         )
@@ -91,6 +92,7 @@ class FilterStore(context: Context) {
             putBoolean("hide_ringtones", value.hideRingtonesAndAlarms)
             putBoolean("hide_video", value.hideVideoFiles)
             putBoolean("hide_podcasts", value.hidePodcastsAndAudiobooks)
+            putBoolean("hide_long_audio", value.hideLongAudio)
             putBoolean("hide_short", value.hideShortClips)
             putInt("short_seconds", value.shortClipSeconds)
         }

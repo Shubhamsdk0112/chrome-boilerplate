@@ -24,6 +24,13 @@ data class FilterOptions(
     val hideVideoFiles: Boolean = true,
     /** Podcasts and audiobooks are legitimate audio, so off by default. */
     val hidePodcastsAndAudiobooks: Boolean = false,
+    /**
+     * Anything at least [longAudioMinutes] long is not a song: audiobooks,
+     * mixes, recorded talks. Hidden from the library and listed under
+     * Podcasts › On this phone instead. Off here; the app's own default is on.
+     */
+    val hideLongAudio: Boolean = false,
+    val longAudioMinutes: Int = 10,
     val hideShortClips: Boolean = true,
     val shortClipSeconds: Int = 30,
 )
@@ -211,6 +218,10 @@ object JunkHeuristics {
         if (options.hidePodcastsAndAudiobooks) {
             if (c.isPodcast) return junk("Marked as a podcast")
             if (c.isAudiobook) return junk("Marked as an audiobook")
+        }
+
+        if (options.hideLongAudio && c.durationMs >= options.longAudioMinutes * 60_000L) {
+            return junk("Longer than ${options.longAudioMinutes} minutes — listed under Podcasts")
         }
 
         return null

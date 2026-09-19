@@ -51,6 +51,21 @@ enum class Pacing(val id: String, val minGapSeconds: Int, val maxGapSeconds: Int
     companion object {
         private const val FILE = "extras_importer"
         private const val KEY = "pacing"
+        private const val KEY_LONG_TO_PODCASTS = "long_to_podcasts"
+
+        /**
+         * Whether a YouTube video at least LONG_AUDIO_MINUTES long is saved as a
+         * podcast episode (own section, chapters, never in the song library)
+         * instead of a song. On by default: a two-hour video is not a song.
+         */
+        fun longVideosToPodcasts(context: Context): Boolean =
+            context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+                .getBoolean(KEY_LONG_TO_PODCASTS, true)
+
+        fun setLongVideosToPodcasts(context: Context, value: Boolean) {
+            context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+                .edit { putBoolean(KEY_LONG_TO_PODCASTS, value) }
+        }
 
         fun fromId(id: String?) = entries.firstOrNull { it.id == id } ?: SAFE
 

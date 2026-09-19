@@ -220,6 +220,13 @@ object ArtworkFinder {
         httpBytes(url)?.toString(Charsets.UTF_8)
 
     /**
+     * The video's own thumbnail as cover art, and nothing else. For podcasts
+     * the catalogue search is wrong by construction: an episode title would
+     * match some unrelated album.
+     */
+    fun thumbnailOnly(meta: TrackMetadata): Artwork? = fromYouTubeThumbnail(meta)
+
+    /**
      * A small poster for the job card while the download runs. Never the
      * maxres image: this is decoded into a list row, not embedded in a file.
      */

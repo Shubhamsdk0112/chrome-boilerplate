@@ -354,6 +354,26 @@ class JunkHeuristicsTest {
     }
 
     @Test
+    fun `keeping podcasts also keeps untagged ones`() {
+        // Regression: the option said podcasts are kept, but an untagged
+        // episode was still hidden by the weighted signals, so the toggle only
+        // worked for episodes that happened to carry tags.
+        val untaggedEpisode = candidate(
+            "/storage/emulated/0/Podcasts/ep12.mp3",
+            isPodcast = true,
+            durationMs = 2_400_000,
+            sizeBytes = 19_200_000, // ~64kbps, typical spoken word
+        )
+        assertTrue(judge(untaggedEpisode) != Judgement.JUNK)
+
+        // And opting in still hides it.
+        assertEquals(
+            Judgement.JUNK,
+            judge(untaggedEpisode, FilterOptions(hidePodcastsAndAudiobooks = true)),
+        )
+    }
+
+    @Test
     fun `turning the voice-note rules off keeps whatsapp audio`() {
         val c = candidate(
             "/storage/emulated/0/WhatsApp/Media/WhatsApp Audio/AUD-20240102-WA0007.opus",

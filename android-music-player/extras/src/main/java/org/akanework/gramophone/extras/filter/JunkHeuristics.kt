@@ -255,8 +255,11 @@ object JunkHeuristics {
             add(Signal(-24, "filename is a timestamp or serial number"))
         }
         if (!c.isMusicFlag) add(Signal(-22, "Android does not classify it as music"))
-        if (c.isPodcast) add(Signal(-14, "marked as a podcast"))
-        if (c.isAudiobook) add(Signal(-14, "marked as an audiobook"))
+        // Deliberately no penalty for podcasts or audiobooks here. When the
+        // user opts to hide them, decisive() already has; when they opt to keep
+        // them, weighting against them contradicts that choice — an untagged
+        // episode would otherwise still be hidden by the tag and duration
+        // signals alone.
         if (folder.contains("/download/") || folder.contains("/downloads/")) {
             add(Signal(-8, "sitting in Downloads"))
         }

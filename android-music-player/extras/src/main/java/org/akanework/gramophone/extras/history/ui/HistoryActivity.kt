@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -185,7 +186,7 @@ private fun HistoryRow(entry: HistoryEntry, showCount: Boolean, onClick: () -> U
             } else null
             val meta = listOfNotNull(
                 entry.artist,
-                if (showCount) stringResource(R.string.history_plays, entry.playCount) else when_,
+                if (showCount) pluralStringResource(R.plurals.history_plays, entry.playCount, entry.playCount) else when_,
             ).joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

@@ -89,6 +89,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -361,7 +362,7 @@ private fun ShowRow(podcast: Podcast, onClick: () -> Unit) {
                 Text(podcast.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val meta = listOfNotNull(
                     podcast.author,
-                    stringResource(R.string.podcast_episode_count, podcast.episodes.size),
+                    pluralStringResource(R.plurals.podcast_episode_count, podcast.episodes.size, podcast.episodes.size),
                 ).joinToString(" · ")
                 Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -439,7 +440,7 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                             Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text(
-                            stringResource(R.string.podcast_episode_count, podcast.episodes.size),
+                            pluralStringResource(R.plurals.podcast_episode_count, podcast.episodes.size, podcast.episodes.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -525,7 +526,7 @@ private fun EpisodeRow(
                     if (left > 60) add(stringResource(R.string.podcast_minutes_left, left / 60))
                 }
                 if (downloaded && episode.source != EpisodeSource.LOCAL) add(stringResource(R.string.podcast_downloaded))
-                if (episode.chapters.isNotEmpty()) add(stringResource(R.string.podcast_chapter_count, episode.chapters.size))
+                if (episode.chapters.isNotEmpty()) add(pluralStringResource(R.plurals.podcast_chapter_count, episode.chapters.size, episode.chapters.size))
             }.joinToString(" · ")
             Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (positionMs > 0 && episode.durationSeconds > 0) {

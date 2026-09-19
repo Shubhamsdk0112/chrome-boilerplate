@@ -41,7 +41,10 @@
     <string name="ytdlp_pacing_detail">%1$d–%2$d seconds between songs</string>
     <string name="ytdlp_long_to_podcasts">Videos over 10 min go to Podcasts</string>
     <string name="ytdlp_done_podcast">Saved to Podcasts</string>
-    <string name="ytdlp_done_podcast_chapters">Saved to Podcasts · %1$d chapters</string>
+    <plurals name="ytdlp_done_podcast_chapters">
+        <item quantity="one">Saved to Podcasts · %1$d chapter</item>
+        <item quantity="other">Saved to Podcasts · %1$d chapters</item>
+    </plurals>
     <string name="ytdlp_nothing_to_paste">Nothing on the clipboard looks like a link</string>
 
     <!-- yt-dlp maintenance -->
@@ -65,7 +68,10 @@
     <string name="podcast_downloading">Downloading</string>
     <string name="podcast_preparing">Preparing…</string>
     <string name="podcast_local">On this phone</string>
-    <string name="podcast_chapter_count">%1$d chapters</string>
+    <plurals name="podcast_chapter_count">
+        <item quantity="one">%1$d chapter</item>
+        <item quantity="other">%1$d chapters</item>
+    </plurals>
     <string name="podcast_show_chapters">Chapters</string>
     <string name="podcast_hide_chapters">Hide chapters</string>
     <string name="podcast_needs_download">Not on this phone any more — download it again to play</string>
@@ -79,7 +85,10 @@
     <string name="podcast_refresh">Refresh</string>
     <string name="podcast_refresh_failed">%1$d feed(s) could not be refreshed</string>
     <string name="podcast_empty">Search for a show, paste a YouTube link to save a long video here with its chapters, or paste an RSS link to follow a podcast.\n\nEpisodes can be streamed or downloaded. Your place in each one is remembered.</string>
-    <string name="podcast_episode_count">%1$d episodes</string>
+    <plurals name="podcast_episode_count">
+        <item quantity="one">%1$d episode</item>
+        <item quantity="other">%1$d episodes</item>
+    </plurals>
     <string name="podcast_play">Play</string>
     <string name="podcast_resume">Resume</string>
     <string name="podcast_download">Download</string>
@@ -95,7 +104,10 @@
     <string name="history_most">Most played</string>
     <string name="history_empty">Songs you play for at least 30 seconds show up here.</string>
     <string name="history_play_all">Play all (%1$d)</string>
-    <string name="history_plays">%1$d plays</string>
+    <plurals name="history_plays">
+        <item quantity="one">%1$d play</item>
+        <item quantity="other">%1$d plays</item>
+    </plurals>
     <string name="history_clear">Clear history</string>
     <string name="history_settings_title">Listening history</string>
     <string name="history_settings_summary">Recently played and most played</string>

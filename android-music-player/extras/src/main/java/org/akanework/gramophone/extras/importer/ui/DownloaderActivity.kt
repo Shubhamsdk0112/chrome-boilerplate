@@ -89,6 +89,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -625,7 +626,7 @@ private fun StatusLine(stage: JobStage) {
         }
         is JobStage.Done -> {
             val label = when {
-                stage.podcast && stage.chapters > 0 -> stringResource(R.string.ytdlp_done_podcast_chapters, stage.chapters)
+                stage.podcast && stage.chapters > 0 -> pluralStringResource(R.plurals.ytdlp_done_podcast_chapters, stage.chapters, stage.chapters)
                 stage.podcast -> stringResource(R.string.ytdlp_done_podcast)
                 stage.alreadyImported -> stringResource(R.string.ytdlp_already_imported)
                 stage.artworkSource != null ->

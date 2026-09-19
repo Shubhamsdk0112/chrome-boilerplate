@@ -54,7 +54,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,14 +62,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.filter.AiClassifier
 import org.akanework.gramophone.extras.filter.FilterStore
 import org.akanework.gramophone.extras.filter.FilterWatcher
 import org.akanework.gramophone.extras.filter.Judgement
 import org.akanework.gramophone.extras.filter.LibraryScanner
+import org.akanework.gramophone.extras.filter.ScanController
 
 /**
  * The library filter screen: switch it on, scan, and see exactly what was
@@ -106,7 +106,6 @@ private fun FilterTheme(content: @Composable () -> Unit) {
 private fun FilterScreen() {
     val context = LocalContext.current
     val store = remember { FilterStore(context) }
-    val scope = rememberCoroutineScope()
 
     var enabled by remember { mutableStateOf(store.enabled) }
     var aiEnabled by remember { mutableStateOf(store.aiEnabled) }
@@ -115,9 +114,11 @@ private fun FilterScreen() {
     var model by remember { mutableStateOf(store.model) }
     var options by remember { mutableStateOf(store.options) }
 
-    var progress by remember { mutableStateOf<LibraryScanner.Progress?>(null) }
-    var result by remember { mutableStateOf<LibraryScanner.Result?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // Observed rather than owned: the scan outlives this screen, so rotating
+    // or leaving mid-scan no longer throws the work (and any AI spend) away.
+    val progress by ScanController.progress.collectAsStateWithLifecycle()
+    val result by ScanController.result.collectAsStateWithLifecycle()
+    val error by ScanController.error.collectAsStateWithLifecycle()
     // Paths the user has just restored. Kept separately so the row disappears
     // immediately instead of waiting for the next scan to rebuild the list.
     val restored = remember { mutableStateListOf<String>() }
@@ -132,15 +133,8 @@ private fun FilterScreen() {
     }
 
     fun rescan() {
-        scope.launch {
-            error = null
-            progress = LibraryScanner.Progress(LibraryScanner.Stage.QUERYING)
-            restored.clear()
-            runCatching { LibraryScanner(context).scan { progress = it } }
-                .onSuccess { result = it }
-                .onFailure { error = it.message ?: it::class.java.simpleName }
-            progress = null
-        }
+        restored.clear()
+        ScanController.start(context)
     }
 
     Scaffold(
@@ -173,7 +167,7 @@ private fun FilterScreen() {
                         // without needing another scan.
                         if (!it) {
                             store.unhideAll()
-                            result = null
+                            ScanController.clearResult()
                         }
                         FilterWatcher.ensureStarted(context)
                     },
@@ -390,7 +384,7 @@ private fun FilterScreen() {
                                 store.unhideAll()
                                 store.clearManualOverrides()
                                 restored.clear()
-                                result = null
+                                ScanController.clearResult()
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.filter_unhide_all)) }

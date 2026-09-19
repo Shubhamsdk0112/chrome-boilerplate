@@ -131,13 +131,18 @@ def main(root: Path) -> int:
     #    licence not on its allow-list. yt-dlp's Android wrapper is GPL-3.0,
     #    which is compatible with Gramophone's own GPL-3.0 licence but is not
     #    listed upstream because upstream has no GPL dependencies.
+    #
+    #    The wrapper's POM names the licence "GPL-3.0 license" rather than by
+    #    SPDX id, and aboutLibraries cannot map that to GPL-3.0, so the check
+    #    (which is applied to debug builds too) sees an unknown licence. The
+    #    allow-list accepts raw names as well as SPDX ids, so list that too.
     # ------------------------------------------------------------------
     steps.append(patch(
         app_gradle,
         anchor='allowedLicenses.addAll("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "LGPL-2.1-or-later")',
         replacement=(
             'allowedLicenses.addAll("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", '
-            '"LGPL-2.1-or-later", "GPL-3.0-or-later", "GPL-3.0", "Unlicense")'
+            '"LGPL-2.1-or-later", "GPL-3.0-or-later", "GPL-3.0", "GPL-3.0 license", "Unlicense")'
         ),
         marker='"GPL-3.0-or-later"',
     ))

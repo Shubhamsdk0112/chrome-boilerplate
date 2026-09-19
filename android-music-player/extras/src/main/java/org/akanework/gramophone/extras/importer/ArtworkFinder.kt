@@ -219,6 +219,18 @@ object ArtworkFinder {
     private fun httpText(url: String): String? =
         httpBytes(url)?.toString(Charsets.UTF_8)
 
+    /**
+     * A small poster for the job card while the download runs. Never the
+     * maxres image: this is decoded into a list row, not embedded in a file.
+     */
+    fun fetchThumbnail(meta: TrackMetadata): ByteArray? = runCatching {
+        val candidates = buildList {
+            if (meta.videoId.isNotBlank()) add("https://i.ytimg.com/vi/${meta.videoId}/mqdefault.jpg")
+            meta.thumbnailUrl?.let { add(it) }
+        }
+        candidates.firstNotNullOfOrNull { httpBytes(it) }
+    }.getOrNull()
+
     private fun httpBytes(url: String): ByteArray? {
         var connection: HttpURLConnection? = null
         return try {

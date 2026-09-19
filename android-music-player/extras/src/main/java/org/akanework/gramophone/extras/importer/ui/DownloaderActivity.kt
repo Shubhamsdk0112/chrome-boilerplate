@@ -18,32 +18,42 @@
 package org.akanework.gramophone.extras.importer.ui
 
 import android.Manifest
+import android.content.ClipboardManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.core.util.Consumer
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,21 +83,26 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import androidx.core.content.getSystemService
+import androidx.core.util.Consumer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.isSystemInDarkTheme
+import coil3.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.importer.AudioFormat
 import org.akanework.gramophone.extras.importer.DownloadJob
 import org.akanework.gramophone.extras.importer.DownloadRepository
 import org.akanework.gramophone.extras.importer.DownloadService
 import org.akanework.gramophone.extras.importer.JobStage
-import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.importer.YtDlp
 
 /**
@@ -195,6 +210,21 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
         }
     }
 
+    fun pasteFromClipboard() {
+        val clip = context.getSystemService<ClipboardManager>()
+            ?.primaryClip?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)?.coerceToText(context)?.toString()
+        val found = clip?.let { Regex("""https?://\S+""").find(it)?.value }
+        if (found != null) {
+            url = found
+        } else {
+            scope.launch { snackbars.showSnackbar(context.getString(R.string.ytdlp_nothing_to_paste)) }
+        }
+    }
+
+    val active = jobs.filterNot { it.stage.isTerminal }
+    val finished = jobs.filter { it.stage.isTerminal }.asReversed()
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbars) },
         topBar = {
@@ -242,56 +272,92 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             )
         },
     ) { insets ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(insets)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(insets),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it },
-                label = { Text(stringResource(R.string.ytdlp_url_hint)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AudioFormat.entries.forEach { option ->
-                    FilterChip(
-                        selected = format == option,
-                        onClick = { formatId = option.id },
-                        label = { Text(option.label) },
-                    )
-                }
-            }
-            Text(
-                text = format.summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Button(
-                onClick = { submit(url) },
-                enabled = url.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.ytdlp_add))
-            }
-
-            if (jobs.isEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    text = stringResource(R.string.ytdlp_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            item {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text(stringResource(R.string.ytdlp_url_hint)) },
+                    singleLine = true,
+                    trailingIcon = {
+                        IconButton(onClick = { pasteFromClipboard() }) {
+                            Icon(
+                                Icons.Default.ContentPaste,
+                                contentDescription = stringResource(R.string.ytdlp_paste),
+                            )
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { submit(url) }),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(jobs, key = { it.id }) { job ->
-                    JobCard(job = job, onCancel = { repository.cancel(job.id) })
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AudioFormat.entries.forEach { option ->
+                        FilterChip(
+                            selected = format == option,
+                            onClick = { formatId = option.id },
+                            label = { Text(option.label) },
+                        )
+                    }
+                }
+                Text(
+                    text = format.summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            item {
+                Button(
+                    onClick = { submit(url) },
+                    enabled = url.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.ytdlp_add))
+                }
+            }
+
+            if (jobs.isEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.ytdlp_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 20.dp),
+                    )
+                }
+            }
+
+            if (active.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.ytdlp_section_active), active.size) }
+                items(active, key = { it.id }) { job ->
+                    JobCard(
+                        job = job,
+                        onCancel = { repository.cancel(job.id) },
+                        onRetry = { repository.retry(job.id) },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+            }
+            if (finished.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.ytdlp_section_done), finished.size) }
+                items(finished, key = { it.id }) { job ->
+                    JobCard(
+                        job = job,
+                        onCancel = { repository.cancel(job.id) },
+                        onRetry = { repository.retry(job.id) },
+                        modifier = Modifier.animateItem(),
+                    )
                 }
             }
         }
@@ -299,10 +365,59 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
 }
 
 @Composable
-private fun JobCard(job: DownloadJob, onCancel: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+private fun SectionHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * One import: poster, what it is, where it has got to, and the one action
+ * that makes sense for its state (cancel, retry, or play).
+ */
+@Composable
+private fun JobCard(
+    job: DownloadJob,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val stage = job.stage
+    val done = stage as? JobStage.Done
+    val failed = stage is JobStage.Failed || stage is JobStage.Cancelled
+
+    val cardColors = when {
+        failed -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        done != null -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        else -> CardDefaults.cardColors()
+    }
+
+    // A finished song opens in the player; nothing else has a tap. A disabled
+    // clickable Card would dim its content, so the others are plain Cards.
+    val playable = done?.uri
+    val content: @Composable () -> Unit = {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Poster(job)
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = job.label,
@@ -310,61 +425,139 @@ private fun JobCard(job: DownloadJob, onCancel: () -> Unit) {
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    job.artist?.let {
+                    val subtitle = listOfNotNull(job.artist, job.format.label.substringBefore(" /"))
+                        .joinToString(" · ")
+                    if (subtitle.isNotEmpty()) {
                         Text(
-                            text = it,
+                            text = subtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    StatusLine(stage)
                 }
-                if (!job.stage.isTerminal) {
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Close, contentDescription = null)
+                when {
+                    !stage.isTerminal -> IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ytdlp_cancel))
                     }
+                    failed -> IconButton(onClick = onRetry) {
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.ytdlp_retry))
+                    }
+                    done?.uri != null -> Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = stringResource(R.string.ytdlp_play),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
                 }
             }
 
-            when (val stage = job.stage) {
-                is JobStage.Downloading -> {
-                    LinearProgressIndicator(
-                        progress = { stage.progress / 100f },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        text = stringResource(R.string.ytdlp_downloading, stage.progress.toInt()),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                is JobStage.Done -> Text(
-                    text = stage.artworkSource
-                        ?.let { stringResource(R.string.ytdlp_done_with_art, it) }
-                        ?: stringResource(R.string.ytdlp_done),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+            when (stage) {
+                is JobStage.Downloading -> LinearProgressIndicator(
+                    progress = { stage.progress / 100f },
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                is JobStage.Failed -> Text(
-                    text = stage.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                is JobStage.Cancelled -> Text(
-                    text = stringResource(R.string.ytdlp_cancelled),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                else -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text(
-                        text = stringResource(stage.labelRes()),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                is JobStage.Queued, is JobStage.Reading, is JobStage.Updating,
+                is JobStage.FindingArtwork, is JobStage.Tagging, is JobStage.Importing ->
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                else -> Unit
             }
         }
     }
+    if (playable != null) {
+        Card(
+            modifier = modifier.fillMaxWidth(),
+            colors = cardColors,
+            onClick = {
+                // Off the main thread on purpose: starting an activity with a
+                // content:// URI makes the system ask MediaProvider to check
+                // it, and that SQLite read is reported back over binder to the
+                // calling thread, which Gramophone's debug StrictMode policy
+                // turns into a dialog. A binder call is fine from IO.
+                scope.launch(Dispatchers.IO) {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(playable, "audio/*")
+                            .setPackage(context.packageName),
+                    )
+                }
+            },
+        ) { content() }
+    } else {
+        Card(modifier = modifier.fillMaxWidth(), colors = cardColors) { content() }
+    }
+}
+
+@Composable
+private fun Poster(job: DownloadJob) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (job.thumbnail != null) {
+            AsyncImage(
+                model = job.thumbnail,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Icon(
+                Icons.Default.MusicNote,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusLine(stage: JobStage) {
+    val (text, color) = when (stage) {
+        is JobStage.Downloading -> {
+            val pct = stage.progress.toInt()
+            val eta = stage.etaSeconds
+            val label = if (eta > 0) {
+                stringResource(R.string.ytdlp_progress_eta, pct, formatEta(eta))
+            } else {
+                stringResource(R.string.ytdlp_progress_only, pct)
+            }
+            label to MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        is JobStage.Done -> {
+            val label = when {
+                stage.alreadyImported -> stringResource(R.string.ytdlp_already_imported)
+                stage.artworkSource != null ->
+                    stringResource(R.string.ytdlp_done_with_art, stage.artworkSource)
+                else -> stringResource(R.string.ytdlp_done)
+            }
+            label to MaterialTheme.colorScheme.primary
+        }
+        is JobStage.Failed -> stage.message to MaterialTheme.colorScheme.error
+        is JobStage.Cancelled ->
+            stringResource(R.string.ytdlp_cancelled) to MaterialTheme.colorScheme.onSurfaceVariant
+        else -> stringResource(stage.labelRes()) to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = color,
+        maxLines = if (stage is JobStage.Failed) 6 else 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 2.dp),
+    )
+}
+
+private fun formatEta(seconds: Long): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return if (m > 0) "%d:%02d".format(m, s) else "${s}s"
 }
 
 private fun JobStage.labelRes(): Int = when (this) {

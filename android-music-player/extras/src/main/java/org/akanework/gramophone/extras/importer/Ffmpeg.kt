@@ -98,10 +98,13 @@ object Ffmpeg {
                 add("-metadata"); add("album_artist=$it")
             }
             // Prefer what the catalogue told us: a YouTube video knows neither
-            // its album nor its release year.
-            (artwork?.album ?: meta.album)?.takeIf { it.isNotBlank() }?.let {
-                add("-metadata"); add("album=$it")
-            }
+            // its album nor its release year. When nobody knows, tag it as a
+            // single (album = title, the usual convention) rather than leaving
+            // the field empty: MediaStore fills an empty album with the parent
+            // folder name, which put every untagged download into a bogus
+            // "Gramophone" album.
+            val album = (artwork?.album ?: meta.album)?.takeIf { it.isNotBlank() } ?: meta.title
+            add("-metadata"); add("album=$album")
             (meta.year ?: artwork?.year)?.takeIf { it.isNotBlank() }?.let {
                 add("-metadata"); add("date=$it")
             }

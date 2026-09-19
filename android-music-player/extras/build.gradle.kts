@@ -69,6 +69,9 @@ dependencies {
 
     val composeBom = platform("androidx.compose:compose-bom:2025.05.00")
     implementation(composeBom)
+    // Same Coil the app module configures as the singleton loader; the job
+    // cards only ever load local files through it, never the network.
+    implementation("io.coil-kt.coil3:coil-compose:3.4.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")

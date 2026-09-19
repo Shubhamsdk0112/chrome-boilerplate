@@ -68,7 +68,8 @@ object DownloadError {
             "That video is private.",
         ),
         Rule(
-            listOf("video unavailable", "this video is not available", "has been removed"),
+            listOf("video unavailable", "video is unavailable", "this video is not available",
+                "has been removed"),
             "That video is not available.",
         ),
         Rule(

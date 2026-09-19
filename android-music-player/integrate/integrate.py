@@ -240,6 +240,52 @@ def main(root: Path) -> int:
     ))
 
     # ------------------------------------------------------------------
+    # 6b. One-tap entry from the library screen. Settings is three taps deep
+    #     and the importer is the feature people open most; the icon sits next
+    #     to search in the home toolbar.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "menu" / "home_menu.xml",
+        anchor="""    <item
+        android:id="@+id/shuffle\"""",
+        replacement="""    <item
+        android:id="@+id/download"
+        android:icon="@drawable/ic_ytdlp_download"
+        android:title="@string/ytdlp_settings_title"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/shuffle\"""",
+        marker='android:id="@+id/download"',
+    ))
+    pager = (
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "ui" / "fragments" / "ViewPagerFragment.kt"
+    )
+    steps.append(patch(
+        pager,
+        anchor="""                R.id.settings -> {
+                    activity.startActivity(Intent(activity, MainSettingsActivity::class.java))
+                }""",
+        replacement="""                R.id.settings -> {
+                    activity.startActivity(Intent(activity, MainSettingsActivity::class.java))
+                }
+
+                R.id.download -> {
+                    activity.startActivity(Intent(activity, DownloaderActivity::class.java))
+                }""",
+        marker="R.id.download ->",
+    ))
+    steps.append(patch(
+        pager,
+        anchor="import org.akanework.gramophone.ui.fragments.settings.MainSettingsActivity",
+        replacement=(
+            "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity\n"
+            "import org.akanework.gramophone.ui.fragments.settings.MainSettingsActivity"
+        ),
+        marker="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
+    ))
+
+    # ------------------------------------------------------------------
     # 7. Teach the library reader about per-file exclusions.
     #
     # Reader walks each file's OWN path before its parent directories when

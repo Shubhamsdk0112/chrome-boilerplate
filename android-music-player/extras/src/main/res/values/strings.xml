@@ -17,7 +17,17 @@
     <string name="ytdlp_importing">Adding to library…</string>
     <string name="ytdlp_done">Added to your library</string>
     <string name="ytdlp_done_with_art">Added to your library · art from %1$s</string>
+    <string name="ytdlp_already_imported">Already in your library</string>
     <string name="ytdlp_cancelled">Cancelled</string>
+    <string name="ytdlp_progress_eta">%1$d%% · %2$s left</string>
+    <string name="ytdlp_progress_only">%1$d%%</string>
+    <string name="ytdlp_section_active">In progress</string>
+    <string name="ytdlp_section_done">Finished</string>
+    <string name="ytdlp_retry">Retry</string>
+    <string name="ytdlp_cancel">Cancel</string>
+    <string name="ytdlp_play">Play</string>
+    <string name="ytdlp_paste">Paste link</string>
+    <string name="ytdlp_nothing_to_paste">Nothing on the clipboard looks like a link</string>
 
     <!-- yt-dlp maintenance -->
     <string name="ytdlp_update">Update yt-dlp</string>

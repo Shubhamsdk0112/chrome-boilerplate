@@ -56,6 +56,8 @@ class DownloadErrorTest {
     fun `common unavailability cases get plain messages`() {
         assertTrue(humanize("ERROR: [youtube] abc: Private video").contains("private"))
         assertTrue(humanize("ERROR: [youtube] abc: Video unavailable").contains("not available"))
+        // Verbatim from a device; the older needle only matched "Video unavailable".
+        assertTrue(humanize("[youtube] MdWgkFd8U_c: This video is unavailable").contains("not available"))
         assertTrue(humanize("ERROR: This video is available to Music Premium members only")
             .contains("members only"))
         assertTrue(humanize("ERROR: [youtube] abc: Sign in to confirm your age")

@@ -99,7 +99,12 @@ sealed interface JobStage {
     data object FindingArtwork : JobStage
     data object Tagging : JobStage
     data object Importing : JobStage
-    data class Done(val uri: Uri?, val artworkSource: String?) : JobStage
+    /** [alreadyImported]: the song was in the library before this job ran. */
+    data class Done(
+        val uri: Uri?,
+        val artworkSource: String?,
+        val alreadyImported: Boolean = false,
+    ) : JobStage
     data class Failed(val message: String) : JobStage
     data object Cancelled : JobStage
 
@@ -114,6 +119,9 @@ data class DownloadJob(
     val stage: JobStage = JobStage.Queued,
     val title: String? = null,
     val artist: String? = null,
+    val videoId: String? = null,
+    /** A small poster for the card, cached on disk once metadata is known. */
+    val thumbnail: File? = null,
 ) {
     val label: String get() = title ?: url
 }
@@ -164,6 +172,14 @@ class DownloadRepository(private val context: Context) {
         _jobs.value = _jobs.value.filterNot { it.stage.isTerminal }
     }
 
+    /** Queues a failed or cancelled job again, in place of the old card. */
+    fun retry(jobId: String) {
+        val old = _jobs.value.firstOrNull { it.id == jobId } ?: return
+        if (!old.stage.isTerminal) return
+        _jobs.value = _jobs.value.filterNot { it.id == jobId }
+        enqueue(old.url, old.format)
+    }
+
     // ------------------------------------------------------------------
 
     private suspend fun process(jobId: String) {
@@ -180,7 +196,7 @@ class DownloadRepository(private val context: Context) {
             // failure, update once and go again before showing anyone an error;
             // most of the time that is the whole fix.
             val (meta, audio) = try {
-                fetch(job, workDir)
+                fetch(job, workDir) ?: return
             } catch (e: Exception) {
                 val stderr = when (e) {
                     is YoutubeDLException -> e.message
@@ -197,7 +213,7 @@ class DownloadRepository(private val context: Context) {
                 if (currentStage(jobId) is JobStage.Cancelled) return
                 workDir.listFiles()?.forEach { it.delete() }
                 update(jobId) { it.copy(stage = JobStage.Reading) }
-                fetch(job, workDir)
+                fetch(job, workDir) ?: return
             }
             if (currentStage(jobId) is JobStage.Cancelled) return
 
@@ -224,6 +240,7 @@ class DownloadRepository(private val context: Context) {
             val uri = MusicImporter.publish(context, renamed, meta, artwork?.album)
                 ?: throw YtDlpFailure("Could not add the file to your music library")
 
+            ImportIndex.record(context, meta.videoId, uri)
             update(jobId) { it.copy(stage = JobStage.Done(uri, artwork?.source)) }
         } catch (e: YoutubeDL.CanceledException) {
             update(jobId) { it.copy(stage = JobStage.Cancelled) }
@@ -248,11 +265,33 @@ class DownloadRepository(private val context: Context) {
      * [workDir]. Everything after this (artwork, tagging, publishing) is ours
      * and does not depend on YouTube cooperating.
      */
-    private suspend fun fetch(job: DownloadJob, workDir: File): Pair<TrackMetadata, File> {
+    private suspend fun fetch(job: DownloadJob, workDir: File): Pair<TrackMetadata, File>? {
         val jobId = job.id
         val meta = MetadataProbe.probe(job.url)
         update(jobId) {
-            it.copy(title = meta.title, artist = meta.artist)
+            it.copy(title = meta.title, artist = meta.artist, videoId = meta.videoId)
+        }
+
+        // The card's poster. Small, cached per video, and not worth failing
+        // the job over.
+        val thumb = File(context.cacheDir, "ytdlp-thumbs/${meta.videoId}.jpg")
+        if (!thumb.isFile && meta.videoId.isNotBlank()) {
+            ArtworkFinder.fetchThumbnail(meta)?.let { bytes ->
+                runCatching {
+                    thumb.parentFile?.mkdirs()
+                    thumb.writeBytes(bytes)
+                }
+            }
+        }
+        if (thumb.isFile) update(jobId) { it.copy(thumbnail = thumb) }
+
+        // Sharing the same video twice used to produce "Song (1).m4a". If a
+        // previous import of it is still in the library, say so and stop.
+        ImportIndex.find(context, meta.videoId)?.let { existing ->
+            update(jobId) {
+                it.copy(stage = JobStage.Done(existing, null, alreadyImported = true))
+            }
+            return null
         }
 
         update(jobId) { it.copy(stage = JobStage.Downloading(0f, 0)) }

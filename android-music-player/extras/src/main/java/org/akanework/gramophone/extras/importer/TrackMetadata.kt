@@ -79,13 +79,14 @@ object MetadataProbe {
 
         val response = YoutubeDL.getInstance().execute(request)
         if (response.exitCode != 0) {
-            throw YtDlpFailure("Could not read video information", response.err)
+            throw YtDlpFailure(DownloadError.humanize(response.err,
+                fallback = "Could not read video information"))
         }
 
         val line = response.out.lineSequence()
             .map { it.trim() }
             .firstOrNull { it.contains(SEP) }
-            ?: throw YtDlpFailure("Video information was empty", response.out)
+            ?: throw YtDlpFailure("Could not read video information")
 
         val f = line.split(SEP)
         fun field(i: Int) = f.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() && it != "NA" }
@@ -190,7 +191,10 @@ object MetadataProbe {
     }
 }
 
-/** A yt-dlp invocation that failed, carrying its stderr for the error sheet. */
-class YtDlpFailure(message: String, val details: String? = null) : Exception(
-    if (details.isNullOrBlank()) message else "$message\n\n${details.takeLast(2000)}"
-)
+/**
+ * A yt-dlp invocation that failed.
+ *
+ * The message is always already user-facing — callers run stderr through
+ * [DownloadError.humanize] first — so the UI can show it verbatim.
+ */
+class YtDlpFailure(message: String) : Exception(message)

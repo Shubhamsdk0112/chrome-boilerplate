@@ -229,6 +229,11 @@ yt-dlp** pulls a fresh extractor at runtime — it swaps only the ~3 MB Python
 payload, so it's quick and needs no new APK. Try that first, before assuming
 anything is broken.
 
+Failures say so in plain language rather than dumping a Python traceback, and
+the ones that the update button actually fixes say that explicitly. Anything
+unrecognised falls through to yt-dlp's own last error line — a confusing message
+you can search for beats a friendly one that hides what happened.
+
 ---
 
 ## Building
@@ -251,7 +256,7 @@ Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Verifying without the Android SDK
 
-`./verify.sh` compiles the module and runs all 61 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 71 unit tests using only Maven
 Central — a real `android.jar` (Robolectric publishes full framework jars), the
 actual youtubedl-android classes from its published `.aar`, and two tiny local
 stubs for the androidx symbols, since androidx is published only on Google's
@@ -284,6 +289,7 @@ extras/                    the new Gradle module
       Ffmpeg.kt            the artwork + tagging pass
       MusicImporter.kt     MediaStore publication (the player integration)
       DownloadRepository.kt   the queue and the pipeline
+      DownloadError.kt     turns yt-dlp stderr into something actionable
       DownloadService.kt   foreground service
       ui/DownloaderActivity.kt
     filter/                keeping non-music out
@@ -294,7 +300,7 @@ extras/                    the new Gradle module
       LibraryScanner.kt    MediaStore query and orchestration
       FilterWatcher.kt     opt-in re-scan when new audio appears
       ui/FilterActivity.kt Compose settings + review screen
-  src/test/java/.../       61 unit tests
+  src/test/java/.../       71 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```

@@ -190,7 +190,7 @@ class DownloadRepository(private val context: Context) {
                 }
             }
             if (response.exitCode != 0) {
-                throw YtDlpFailure("Download failed", response.err)
+                throw YtDlpFailure(DownloadError.humanize(response.err))
             }
             if (currentStage(jobId) is JobStage.Cancelled) return
 

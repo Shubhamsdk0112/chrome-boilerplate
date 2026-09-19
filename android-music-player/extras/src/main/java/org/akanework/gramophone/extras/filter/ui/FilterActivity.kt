@@ -17,12 +17,10 @@
 
 package org.akanework.gramophone.extras.filter.ui
 
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,10 +42,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,6 +65,7 @@ import org.akanework.gramophone.extras.filter.FilterWatcher
 import org.akanework.gramophone.extras.filter.Judgement
 import org.akanework.gramophone.extras.filter.LibraryScanner
 import org.akanework.gramophone.extras.filter.ScanController
+import org.akanework.gramophone.extras.ui.ExtrasTheme
 
 /**
  * The library filter screen: switch it on, scan, and see exactly what was
@@ -84,21 +79,8 @@ class FilterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { FilterTheme { FilterScreen() } }
+        setContent { ExtrasTheme { FilterScreen() } }
     }
-}
-
-@Composable
-private fun FilterTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-    MaterialTheme(colorScheme = colors, content = content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

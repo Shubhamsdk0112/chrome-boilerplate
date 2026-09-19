@@ -19,6 +19,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 MODULE_SRC = HERE.parent / "extras"
 
+sys.path.insert(0, str(HERE))
+import palette  # noqa: E402  (sibling module; holds the colour tokens)
+
 
 class AnchorMissing(RuntimeError):
     pass
@@ -238,6 +241,23 @@ def main(root: Path) -> int:
         ),
         marker="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
     ))
+
+    # ------------------------------------------------------------------
+    # 6a. The palette. Upstream's Android 12+ theme takes its colours from
+    #     the wallpaper; below that it uses a stock Material blue. Both are
+    #     replaced by the curated set in palette.py, on every API level.
+    #     The player keeps seeding its own colours from the album cover.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "values-v31" / "themes.xml",
+        anchor='<style name="Theme.Gramophone" parent="Base.Theme.Gramophone">',
+        replacement=(
+            '<!-- PreV31 rather than Base: the curated palette, not wallpaper colours. -->\n'
+            '    <style name="Theme.Gramophone" parent="PreV31.Theme.Gramophone">'
+        ),
+        marker="curated palette, not wallpaper colours",
+    ))
+    steps.extend(palette.apply_to_checkout(root))
 
     # ------------------------------------------------------------------
     # 6b. One-tap entry from the library screen. Settings is three taps deep

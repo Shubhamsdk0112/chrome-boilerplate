@@ -29,7 +29,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,10 +67,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -104,6 +99,7 @@ import org.akanework.gramophone.extras.importer.DownloadRepository
 import org.akanework.gramophone.extras.importer.DownloadService
 import org.akanework.gramophone.extras.importer.JobStage
 import org.akanework.gramophone.extras.importer.YtDlp
+import org.akanework.gramophone.extras.ui.ExtrasTheme
 
 /**
  * The importer screen.
@@ -137,7 +133,7 @@ class DownloaderActivity : ComponentActivity() {
                 addOnNewIntentListener(listener)
                 onDispose { removeOnNewIntentListener(listener) }
             }
-            ImporterTheme {
+            ExtrasTheme {
                 DownloaderScreen(share = share, onShareHandled = { share = null })
             }
         }
@@ -159,19 +155,6 @@ class DownloaderActivity : ComponentActivity() {
  * the same URL are two requests, and identity is what tells them apart.
  */
 private class ShareRequest(val url: String)
-
-@Composable
-private fun ImporterTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-    MaterialTheme(colorScheme = colors, content = content)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

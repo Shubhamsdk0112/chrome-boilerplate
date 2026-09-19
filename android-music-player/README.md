@@ -249,6 +249,19 @@ integration.
 
 Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
+### Verifying without the Android SDK
+
+`./verify.sh` compiles the module and runs all 61 unit tests using only Maven
+Central — a real `android.jar` (Robolectric publishes full framework jars), the
+actual youtubedl-android classes from its published `.aar`, and two tiny local
+stubs for the androidx symbols, since androidx is published only on Google's
+Maven. It also syntax-checks the three Compose/Service files that cannot be
+type-checked without androidx.
+
+This is what to use in a sandbox or CI that cannot reach `dl.google.com`. It is
+**not** a substitute for a Gradle build: Compose type-checking, resource merging
+and manifest merging all still need the SDK.
+
 ### Updating upstream
 
 The integration touches only **52 lines across 5 upstream files** in 10 anchored

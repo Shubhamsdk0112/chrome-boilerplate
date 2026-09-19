@@ -29,6 +29,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -174,10 +175,18 @@ class DownloadRepository(private val context: Context) {
                 .addOption("--embed-metadata")
                 .addOption("-o", File(workDir, "%(id)s.%(ext)s").absolutePath)
 
+            var lastPublishedPercent = -1
             val response = YoutubeDL.getInstance().execute(request, jobId) { progress, eta, _ ->
-                update(jobId) { current ->
-                    if (current.stage is JobStage.Cancelled) current
-                    else current.copy(stage = JobStage.Downloading(progress.coerceIn(0f, 100f), eta))
+                val clamped = progress.coerceIn(0f, 100f)
+                // yt-dlp reports far more often than anything downstream can
+                // use, and every emission re-renders the list and the
+                // notification. Whole percent steps are plenty.
+                if (clamped.toInt() != lastPublishedPercent) {
+                    lastPublishedPercent = clamped.toInt()
+                    update(jobId) { current ->
+                        if (current.stage is JobStage.Cancelled) current
+                        else current.copy(stage = JobStage.Downloading(clamped, eta))
+                    }
                 }
             }
             if (response.exitCode != 0) {
@@ -243,8 +252,16 @@ class DownloadRepository(private val context: Context) {
 
     private fun currentStage(jobId: String) = _jobs.value.firstOrNull { it.id == jobId }?.stage
 
+    /**
+     * Atomically rewrites one job.
+     *
+     * yt-dlp delivers progress on its own reader thread while the queue worker
+     * is also mutating the list, so a plain `value = value.map { }` would be a
+     * read-modify-write race that silently loses updates. [update] retries on
+     * conflict.
+     */
     private fun update(jobId: String, transform: (DownloadJob) -> DownloadJob) {
-        _jobs.value = _jobs.value.map { if (it.id == jobId) transform(it) else it }
+        _jobs.update { jobs -> jobs.map { if (it.id == jobId) transform(it) else it } }
     }
 
     companion object {

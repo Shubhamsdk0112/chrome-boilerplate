@@ -103,7 +103,12 @@ def main(root: Path) -> int:
             // Must stay true: the :extras module executes CPython and ffmpeg as
             // binaries from nativeLibraryDir, which requires them to be
             // extracted at install time rather than mapped from the APK.
-            useLegacyPackaging = true""",
+            useLegacyPackaging = true
+            // These are zip payloads named like shared objects so the install
+            // extracts them. They are not ELF, so tell the strip step to leave
+            // them alone instead of printing an error per ABI.
+            keepDebugSymbols += "**/libpython.zip.so"
+            keepDebugSymbols += "**/libffmpeg.zip.so\"""",
         marker="Must stay true",
     ))
 

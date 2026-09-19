@@ -114,4 +114,45 @@ class DownloadErrorTest {
     fun `matching is case insensitive`() {
         assertTrue(humanize("error: PRIVATE VIDEO").contains("private"))
     }
+
+    // Verbatim from a device running the bundled 2025.11.12 build: YouTube
+    // moved that client to SABR, the download wrote nothing, and the only
+    // ERROR lines were about a missing .part file. The rename error is a
+    // symptom; the message has to talk about the cause.
+    private val staleSabrOutput = """
+        WARNING: Your yt-dlp version (2025.11.12) is older than 90 days!
+                 It is strongly recommended to always use the latest version.
+        WARNING: [youtube] jNQXAC9IVRw: Some web client https formats have been skipped as they are missing a url. YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details
+        ERROR: Unable to rename file: [Errno 2] No such file or directory: '/data/user/0/x/cache/ytdlp-work/1/jNQXAC9IVRw.m4a.part' -> '/data/user/0/x/cache/ytdlp-work/1/jNQXAC9IVRw.m4a'
+        ERROR: [Errno 2] No such file or directory: '/data/user/0/x/cache/ytdlp-work/1/jNQXAC9IVRw.m4a'
+    """.trimIndent()
+
+    @Test
+    fun `a client YouTube has moved to SABR points at the update button`() {
+        val message = humanize(staleSabrOutput)
+        assertTrue(message, message.contains("Update yt-dlp"))
+        assertTrue(message, !message.contains(".part"))
+    }
+
+    @Test
+    fun `needsUpdate recognises the failures an update fixes`() {
+        assertTrue(DownloadError.needsUpdate(staleSabrOutput))
+        assertTrue(DownloadError.needsUpdate("ERROR: [youtube] x: nsig extraction failed"))
+        assertTrue(DownloadError.needsUpdate("ERROR: unable to download video data: HTTP Error 403: Forbidden"))
+    }
+
+    @Test
+    fun `needsUpdate stays quiet for failures an update cannot fix`() {
+        assertTrue(!DownloadError.needsUpdate(null))
+        assertTrue(!DownloadError.needsUpdate("ERROR: [youtube] abc: Private video"))
+        assertTrue(!DownloadError.needsUpdate("ERROR: Unable to handle request: Unsupported url scheme: \"htttps\""))
+        assertTrue(!DownloadError.needsUpdate("ERROR: unable to download webpage: <urlopen error [Errno 7] No address associated with hostname>"))
+    }
+
+    @Test
+    fun `a mistyped scheme is explained rather than dumped`() {
+        // Also verbatim from a device.
+        val message = humanize("ERROR: Unable to handle request: Unsupported url scheme: \"htttps\" (urllib)")
+        assertTrue(message, message.contains("does not look like a link"))
+    }
 }

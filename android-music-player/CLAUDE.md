@@ -16,44 +16,64 @@ holding two features:
   the rules cannot place.
 
 Upstream is **not vendored**. `setup.sh` clones it at a pinned commit and
-`integrate/integrate.py` applies 10 anchored patches (52 lines across 5 files).
+`integrate/integrate.py` applies 11 anchored patches.
 
-## The single most important fact
+## State (2026-09-19)
 
-**This has never been compiled by a real Android toolchain.** It was written in
-a sandbox where `dl.google.com` is blocked, so there is no Android SDK there.
-Compose type-checking, resource merging and manifest merging have never run.
+**Builds and runs.** Verified on Windows 11 with Android Studio's JDK 21,
+SDK Platform 37, NDK 28.2 (Gradle installs both), on an API 36 x86_64
+emulator:
 
-**Expect `:app:assembleDebug` to fail the first time.** Most likely in the three
-files that could never be type-checked:
-
-- `extras/src/main/java/org/akanework/gramophone/extras/importer/ui/DownloaderActivity.kt`
-- `extras/src/main/java/org/akanework/gramophone/extras/filter/ui/FilterActivity.kt`
-- `extras/src/main/java/org/akanework/gramophone/extras/importer/DownloadService.kt`
-
-Everything else — the whole filter package and the importer core — does compile
-clean against a real `android.jar`, and 98 unit tests pass.
-
-**Fixing that first build is the job.** Start there.
+- `:app:assembleDebug` succeeds and produces per-ABI debug APKs.
+- App launches with no StrictMode violation from `:extras` (upstream's debug
+  builds use `detectAll()` + `penaltyDialog()` on the main thread — any
+  first-touch disk I/O on the main thread pops a dialog).
+- Settings shows "Add from YouTube" and "Filter library".
+- Importer end to end: link shared via `ACTION_SEND` → metadata → download →
+  YouTube-thumbnail cover → ffmpeg tags → `Music/Gramophone/Artist - Title.m4a`
+  in MediaStore → appears in the library with art → plays.
+- Filter end to end: a WhatsApp `PTT-*.opus` and a `Recordings/Call/*.m4a` are
+  hidden with reasons, written to `junkFilterPaths`, and Gramophone's library
+  drops them (the blacklist-union patch works). Tagged real songs survive.
+- "Update yt-dlp" in the menu works (moved 2025.11.12 → 2026.08.19).
+- `./verify.sh`: 102 unit tests pass, on Windows too.
 
 ## Build
 
 ```bash
-./setup.sh                 # Git Bash or WSL on Windows
+./setup.sh                 # Git Bash on Windows (sets core.longpaths itself)
 cd build/Gramophone
 ./gradlew :app:assembleDebug        # gradlew.bat on Windows
 ```
 
 Needs JDK 21, the Android SDK and the NDK (Gramophone's `hificore` module has
-native code). The first build is slow: it compiles a patched Media3 from source.
+native code). The first build is slow: it compiles a patched Media3 from source
+and may download SDK Platform 37 and NDK 28.2. Later builds take ~1–2 minutes.
 
 Install the APK matching the target — **arm64-v8a** for a phone, **x86_64** for
 an emulator. The wrong one installs fine but leaves the app with no CPython or
-ffmpeg to execute, and every download fails at startup.
+ffmpeg to execute, and every download fails at startup. The debug package id is
+`org.akanework.gramophone.debug`.
+
+After editing anything under `extras/`, re-run
+`python integrate/integrate.py build/Gramophone` (it re-copies the module and
+is idempotent about the patches), then build.
+
+### Windows notes
+
+- Media3's test assets exceed MAX_PATH; `setup.sh` sets `core.longpaths`. If a
+  submodule checkout ever dies halfway, re-run `setup.sh` — it passes
+  `--force` so the checkout is repaired.
+- `python3` on Windows is a Microsoft Store stub; `setup.sh` picks whichever
+  interpreter actually runs.
+- Android Studio's JDK is not on PATH. `export JAVA_HOME="C:\Program
+  Files\Android\Android Studio\jbr"` before `gradlew.bat` / `verify.sh`.
+- A Play Store emulator image fills its 6 GB data partition with Google app
+  updates; the APK needs ~350 MB free to install.
 
 ## Verify without the SDK
 
-`./verify.sh` compiles the module and runs all 98 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 102 unit tests using only Maven
 Central (a Robolectric `android.jar`, the real youtubedl-android classes, and
 two small androidx stubs). Useful in CI or a sandbox. **Not** a substitute for a
 Gradle build — it cannot type-check Compose.
@@ -63,8 +83,22 @@ Gradle build — it cannot type-check Compose.
 - `jniLibs.useLegacyPackaging = true` in `app/build.gradle.kts` is **required**.
   youtubedl-android does not `System.loadLibrary()` its payload, it *executes*
   it from `nativeLibraryDir`, which only exists if libs are extracted at install.
-- `aboutLibraries` runs in strict mode and fails release builds on any licence
-  not allow-listed. GPL-3.0 was added for yt-dlp's wrapper.
+  `keepDebugSymbols` for `libpython.zip.so` / `libffmpeg.zip.so` only silences
+  the strip step; they are zip files, not ELF.
+- minSdk is 24 (app and `:extras`), not upstream's 23: youtubedl-android
+  declares 24 and the manifest merger refuses anything lower.
+- `aboutLibraries` runs in strict mode and fails the build on any licence not
+  allow-listed. youtubedl-android's POM names its licence `"GPL-3.0 license"`
+  (not an SPDX id), so that exact string is on the allow-list.
+- youtubedl-android's `execute()` **throws** `YoutubeDLException` (message =
+  yt-dlp's stderr) on a non-zero exit; it does not return `exitCode != 0`.
+  Failure handling lives in the catch blocks, and `DownloadError.humanize`
+  turns stderr into a message.
+- The bundled yt-dlp is as old as the APK. When a download fails the way a
+  stale extractor fails (`DownloadError.needsUpdate`), the repository updates
+  yt-dlp once and retries before showing an error.
+- Nothing in `:extras` may touch SharedPreferences or the network on the main
+  thread — see StrictMode above. `FilterWatcher.ensureStarted` runs on IO.
 - The filter hides files by writing absolute paths into the `junkFilterPaths`
   preference, which a patch unions into Gramophone's blacklist. `Reader` walks
   each file's own path before its parents, which is why per-file entries work.
@@ -72,8 +106,16 @@ Gradle build — it cannot type-check Compose.
 
 ## Not yet verified by anyone
 
-- The Gradle build (above).
-- The live OpenRouter request. `openrouter.ai` was also blocked in the sandbox,
-  so only the request-building and response-parsing are tested (15 tests,
-  including every malformed-response path). Failure there leaves files visible.
-- Any behaviour on a real device.
+- The live OpenRouter request. Only the request-building and response-parsing
+  are tested (15 tests, including every malformed-response path). Failure there
+  leaves files visible.
+- Anything on a real arm64 phone, or a release build.
+- The automatic update-and-retry path on a device (unit-tested; the manual
+  update was exercised on the emulator).
+
+## Known follow-ups
+
+- Importing the same video twice creates a second file; a video-id check
+  against the library would avoid that.
+- Downloads and the OpenRouter call open untagged sockets, which upstream's
+  VmPolicy logs (not a dialog). `TrafficStats.setThreadStatsTag` would quiet it.

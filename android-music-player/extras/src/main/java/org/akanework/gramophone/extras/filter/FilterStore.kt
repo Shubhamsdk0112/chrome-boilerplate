@@ -101,28 +101,14 @@ class FilterStore(context: Context) {
      * Its main job is to make the AI pass a one-off cost: a file that has been
      * classified once is never sent anywhere again.
      */
-    fun cachedVerdict(fingerprint: String): Verdict? {
-        val raw = own.getString("v:$fingerprint", null) ?: return null
-        val parts = raw.split('\u001f')
-        val judgement = runCatching { Judgement.valueOf(parts[0]) }.getOrNull() ?: return null
-        val source = parts.getOrNull(2)
-            ?.let { runCatching { Verdict.Source.valueOf(it) }.getOrNull() }
-            ?: Verdict.Source.HEURISTIC
-        return Verdict(judgement, parts.getOrNull(1).orEmpty(), source)
-    }
+    fun cachedVerdict(fingerprint: String): Verdict? =
+        Verdict.decode(own.getString("v:$fingerprint", null))
 
     fun putVerdicts(verdicts: Map<String, Verdict>) {
         if (verdicts.isEmpty()) return
         own.edit {
             for ((fingerprint, verdict) in verdicts) {
-                putString(
-                    "v:$fingerprint",
-                    listOf(
-                        verdict.judgement.name,
-                        verdict.reason.replace('\u001f', ' '),
-                        verdict.source.name,
-                    ).joinToString("\u001f"),
-                )
+                putString("v:$fingerprint", verdict.encode())
             }
         }
     }
@@ -181,9 +167,5 @@ class FilterStore(context: Context) {
          * user's folder blacklist before handing it to the library reader.
          */
         const val KEY_JUNK_PATHS = "junkFilterPaths"
-
-        /** Cache key for a file; changes when the file's size or mtime changes. */
-        fun fingerprint(path: String, sizeBytes: Long, dateModified: Long): String =
-            "$path|$sizeBytes|$dateModified"
     }
 }

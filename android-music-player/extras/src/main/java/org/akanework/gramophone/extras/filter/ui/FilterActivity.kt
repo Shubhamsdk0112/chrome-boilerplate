@@ -50,6 +50,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -113,11 +114,15 @@ private fun FilterScreen() {
     var progress by remember { mutableStateOf<LibraryScanner.Progress?>(null) }
     var result by remember { mutableStateOf<LibraryScanner.Result?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Paths the user has just restored. Kept separately so the row disappears
+    // immediately instead of waiting for the next scan to rebuild the list.
+    val restored = remember { mutableStateListOf<String>() }
 
     fun rescan() {
         scope.launch {
             error = null
             progress = LibraryScanner.Progress(LibraryScanner.Stage.QUERYING)
+            restored.clear()
             runCatching { LibraryScanner(context).scan { progress = it } }
                 .onSuccess { result = it }
                 .onFailure { error = it.message ?: it::class.java.simpleName }
@@ -347,12 +352,20 @@ private fun FilterScreen() {
 
                     item {
                         OutlinedButton(
-                            onClick = { store.unhideAll(); store.clearManualOverrides(); result = null },
+                            onClick = {
+                                store.unhideAll()
+                                store.clearManualOverrides()
+                                restored.clear()
+                                result = null
+                            },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.filter_unhide_all)) }
                     }
 
-                    val hiddenEntries = r.entries.filter { it.verdict.judgement == Judgement.JUNK }
+                    val hiddenEntries = r.entries.filter {
+                        it.verdict.judgement == Judgement.JUNK &&
+                            it.candidate.path !in restored
+                    }
                     if (hiddenEntries.isNotEmpty()) {
                         item {
                             Text(
@@ -367,6 +380,7 @@ private fun FilterScreen() {
                                 onKeep = {
                                     store.setManualOverride(entry.candidate.path, Judgement.MUSIC)
                                     store.hiddenPaths = store.hiddenPaths - entry.candidate.path
+                                    restored += entry.candidate.path
                                 },
                             )
                         }

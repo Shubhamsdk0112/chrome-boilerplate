@@ -73,17 +73,17 @@ class LibraryScanner(context: Context) {
         val unsure = mutableListOf<AudioCandidate>()
 
         candidates.forEachIndexed { index, candidate ->
-            val manual = store.manualOverride(candidate.path)
-            val verdict = when {
-                manual != null -> Verdict(manual, "You set this manually", Verdict.Source.MANUAL)
-                else -> store.cachedVerdict(candidate.fingerprint)
-                    ?: JunkHeuristics.classify(candidate, options).also {
-                        // Only settled verdicts are cached. Leaving unsure ones
-                        // uncached is what lets a later AI pass pick them up.
-                        if (it.judgement != Judgement.UNSURE) {
-                            toCache[candidate.fingerprint] = it
-                        }
+            val verdict = resolveVerdict(
+                manual = store.manualOverride(candidate.path),
+                cached = store.cachedVerdict(candidate.fingerprint),
+            ) {
+                JunkHeuristics.classify(candidate, options).also {
+                    // Only settled verdicts are cached. Leaving unsure ones
+                    // uncached is what lets a later AI pass pick them up.
+                    if (it.judgement != Judgement.UNSURE) {
+                        toCache[candidate.fingerprint] = it
                     }
+                }
             }
             verdicts[candidate.id] = verdict
             if (verdict.judgement == Judgement.UNSURE) unsure += candidate
@@ -118,10 +118,16 @@ class LibraryScanner(context: Context) {
         val entries = candidates.map { Entry(it, verdicts[it.id] ?: UNKNOWN) }
         // This assignment is what makes songs disappear from the library: the
         // patched application class unions it with the user's folder blacklist.
-        store.hiddenPaths = entries
-            .filter { it.verdict.judgement == Judgement.JUNK }
-            .map { it.candidate.path }
-            .toSet()
+        // With the filter switched off we still report what *would* be hidden,
+        // but hide nothing — the switch is the single source of truth.
+        store.hiddenPaths = if (!store.enabled) {
+            emptySet()
+        } else {
+            entries
+                .filter { it.verdict.judgement == Judgement.JUNK }
+                .map { it.candidate.path }
+                .toSet()
+        }
 
         onProgress(Progress(Stage.DONE, entries.size, entries.size))
         Result(entries, askedAi, aiAnswered)
@@ -196,18 +202,9 @@ class LibraryScanner(context: Context) {
             isPodcast = cursor.flagOf(MediaStore.Audio.Media.IS_PODCAST),
             isAudiobook = cursor.flagOf("is_audiobook"),
             isRecording = cursor.flagOf("is_recording"),
-        ).also {
-            fingerprints[it.id] = FilterStore.fingerprint(
-                path, it.sizeBytes, cursor.longOf(MediaStore.Audio.Media.DATE_MODIFIED) ?: 0
-            )
-        }
+            dateModified = cursor.longOf(MediaStore.Audio.Media.DATE_MODIFIED) ?: 0,
+        )
     }
-
-    /** Fingerprints are computed while reading the cursor and looked up later. */
-    private val fingerprints = HashMap<Long, String>()
-
-    private val AudioCandidate.fingerprint: String
-        get() = fingerprints[id] ?: FilterStore.fingerprint(path, sizeBytes, 0)
 
     private fun Cursor.stringOf(column: String): String? {
         val index = getColumnIndex(column)

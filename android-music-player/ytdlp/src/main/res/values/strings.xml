@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Importer screen -->
+    <string name="ytdlp_title">Add from YouTube</string>
+    <string name="ytdlp_url_hint">YouTube link</string>
+    <string name="ytdlp_add">Add to library</string>
+    <string name="ytdlp_empty">Paste a link above, or share a video from the YouTube app to Gramophone.\n\nThe first download unpacks the yt-dlp runtime and takes a moment longer than the rest.</string>
+    <string name="ytdlp_clear_finished">Clear finished</string>
+
+    <!-- Stages -->
+    <string name="ytdlp_queued">Waiting…</string>
+    <string name="ytdlp_preparing">Preparing…</string>
+    <string name="ytdlp_reading">Reading video info…</string>
+    <string name="ytdlp_downloading">Downloading — %1$d%%</string>
+    <string name="ytdlp_finding_artwork">Looking for album art…</string>
+    <string name="ytdlp_tagging">Writing tags…</string>
+    <string name="ytdlp_importing">Adding to library…</string>
+    <string name="ytdlp_done">Added to your library</string>
+    <string name="ytdlp_done_with_art">Added to your library · art from %1$s</string>
+    <string name="ytdlp_cancelled">Cancelled</string>
+
+    <!-- yt-dlp maintenance -->
+    <string name="ytdlp_update">Update yt-dlp</string>
+    <string name="ytdlp_updating">Updating yt-dlp…</string>
+    <string name="ytdlp_updated">yt-dlp is now %1$s</string>
+    <string name="ytdlp_update_failed">Could not update yt-dlp</string>
+
+    <!-- Notification -->
+    <string name="ytdlp_notification_title">Importing music</string>
+    <string name="ytdlp_notification_channel">Music import</string>
+
+    <!-- Settings entry, referenced from the app module -->
+    <string name="ytdlp_settings_title">Add from YouTube</string>
+    <string name="ytdlp_settings_summary">Download songs with yt-dlp and add them to your library</string>
+</resources>

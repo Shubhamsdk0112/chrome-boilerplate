@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Wires the :ytdlp module into a Gramophone checkout.
+Wires the :extras module into a Gramophone checkout.
 
 Every edit below is anchored on a distinctive line of upstream source. If an
 anchor has moved the script stops and says which one, rather than silently
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-MODULE_SRC = HERE.parent / "ytdlp"
+MODULE_SRC = HERE.parent / "extras"
 
 
 class AnchorMissing(RuntimeError):
@@ -48,11 +48,11 @@ def main(root: Path) -> int:
     # ------------------------------------------------------------------
     # 1. Copy the module in.
     # ------------------------------------------------------------------
-    destination = root / "ytdlp"
+    destination = root / "extras"
     if destination.exists():
         shutil.rmtree(destination)
     shutil.copytree(MODULE_SRC, destination)
-    steps.append("  + ytdlp/: module copied")
+    steps.append("  + extras/: module copied")
 
     # ------------------------------------------------------------------
     # 2. Register the module with Gradle.
@@ -60,8 +60,8 @@ def main(root: Path) -> int:
     steps.append(patch(
         root / "settings.gradle.kts",
         anchor='include(":app")',
-        replacement='include(":ytdlp")\ninclude(":app")',
-        marker='include(":ytdlp")',
+        replacement='include(":extras")\ninclude(":app")',
+        marker='include(":extras")',
     ))
 
     app_gradle = root / "app" / "build.gradle.kts"
@@ -71,9 +71,9 @@ def main(root: Path) -> int:
         anchor='    implementation(project(":hificore"))',
         replacement=(
             '    implementation(project(":hificore"))\n'
-            '    implementation(project(":ytdlp"))'
+            '    implementation(project(":extras"))'
         ),
-        marker='project(":ytdlp")',
+        marker='project(":extras")',
     ))
 
     # ------------------------------------------------------------------
@@ -90,7 +90,7 @@ def main(root: Path) -> int:
         anchor="""        jniLibs {
             useLegacyPackaging = false""",
         replacement="""        jniLibs {
-            // Must stay true: the :ytdlp module executes CPython and ffmpeg as
+            // Must stay true: the :extras module executes CPython and ffmpeg as
             // binaries from nativeLibraryDir, which requires them to be
             // extracted at install time rather than mapped from the APK.
             useLegacyPackaging = true""",
@@ -153,6 +153,13 @@ def main(root: Path) -> int:
         android:title="@string/ytdlp_settings_title" />
 
     <Preference
+        android:icon="@drawable/ic_extras_filter"
+        android:key="libraryFilter"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/filter_settings_summary"
+        android:title="@string/filter_settings_title" />
+
+    <Preference
         android:icon="@drawable/ic_info"
         android:key="about\"""",
         marker='android:key="downloader"',
@@ -173,20 +180,51 @@ def main(root: Path) -> int:
 
             "downloader" -> {
                 startActivity(DownloaderActivity::class.java)
+            }
+
+            "libraryFilter" -> {
+                startActivity(FilterActivity::class.java)
             }""",
         marker='"downloader" ->',
     ))
     steps.append(patch(
         fragment,
-        anchor="import org.akanework.gramophone.ui.fragments.BaseSettingsActivity",
+        anchor="import org.akanework.gramophone.R",
         replacement=(
-            "import org.akanework.gramophone.ui.fragments.BaseSettingsActivity\n"
-            "import org.akanework.gramophone.ytdlp.ui.DownloaderActivity"
+            "import org.akanework.gramophone.R\n"
+            "import org.akanework.gramophone.extras.filter.ui.FilterActivity\n"
+            "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity"
         ),
-        marker="import org.akanework.gramophone.ytdlp.ui.DownloaderActivity",
+        marker="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
     ))
 
-    print(f"Integrating :ytdlp into {root}")
+    # ------------------------------------------------------------------
+    # 7. Teach the library reader about per-file exclusions.
+    #
+    # Reader walks each file's OWN path before its parent directories when
+    # testing the blacklist, so an absolute file path in that set hides exactly
+    # that one file. The filter writes its verdicts to a separate preference so
+    # the user's folder blacklist screen stays a list of folders, and the two
+    # are unioned here.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "GramophoneApplication.kt",
+        anchor="""            if (key == null || key == "folderFilter") {
+                blackListSetFlow.emit(prefs.getStringSet("folderFilter",
+                    extraDisallowedFolders) ?: extraDisallowedFolders)
+            }""",
+        replacement="""            if (key == null || key == "folderFilter" || key == "junkFilterPaths") {
+                val folders = prefs.getStringSet("folderFilter",
+                    extraDisallowedFolders) ?: extraDisallowedFolders
+                // Per-file exclusions written by the :extras library filter.
+                val junk = prefs.getStringSet("junkFilterPaths", emptySet()) ?: emptySet()
+                blackListSetFlow.emit(if (junk.isEmpty()) folders else folders + junk)
+            }""",
+        marker="junkFilterPaths",
+    ))
+
+    print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)
     print("\nDone. Build with:")

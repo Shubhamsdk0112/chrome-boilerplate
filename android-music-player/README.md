@@ -1,11 +1,16 @@
-# Gramophone + yt-dlp
+# Gramophone + extras
 
-A local Android music player that can pull songs straight off YouTube, tag them,
-find real album art, and drop them into your library.
+A local Android music player that
+
+- pulls songs straight off YouTube, tags them, finds real album art and drops
+  them into your library, and
+- keeps the junk **out** of that library — WhatsApp voice notes, call
+  recordings, ringtones, stray video files — using local rules plus an optional
+  AI pass for the leftovers.
 
 It is [Gramophone](https://github.com/AkaneTan/Gramophone) — an actively
 maintained, Material 3, MediaStore-backed local player — plus one new Gradle
-module, `:ytdlp`, that adds the importer.
+module, `:extras`, holding both features.
 
 ---
 
@@ -99,7 +104,72 @@ still get a correctly tagged song, just without the nicer cover.
 
 ---
 
-## Using it
+## The library filter
+
+**Settings → Filter library.**
+
+The problem it solves: a phone accumulates thousands of audio files that are not
+music. WhatsApp voice notes named `AUD-20240102-WA0007.opus`, call recordings,
+ringtones, notification blips, video files. A MediaStore-backed player shows all
+of it, and the library becomes unusable.
+
+It runs in two stages, and the second one usually barely runs at all.
+
+### Stage 1 — local rules, free and instant
+
+Two kinds of rule:
+
+- **Decisive** — things that are simply not music. A file named
+  `AUD-20240102-WA0007.opus`, or one sitting in `WhatsApp/Media/WhatsApp Audio`,
+  or carrying Android's own ringtone/alarm/recording flag. These short-circuit
+  and are not up for debate.
+- **Weighted** — everything else is scored from signals: artist and album tags,
+  folder, duration, and **encoded bitrate**, which separates speech from music
+  better than anything else available without decoding the file (voice notes sit
+  near 16–32 kbps, music rarely below 96).
+
+Anything that lands in the middle is returned as *unsure* and stays **visible**.
+
+### Stage 2 — the AI pass, for leftovers only
+
+Only *unsure* files reach it, so on a real library this is a handful of items,
+not thousands. They are batched 40 per request to OpenRouter and the verdicts
+are cached permanently, so a file is never classified twice.
+
+**What gets sent: filename, folder, duration, bitrate and tags. That is all.**
+No audio ever leaves the device — there is nothing in the request that a file
+listing does not already show. There is a unit test asserting this.
+
+You supply your own OpenRouter key in the settings screen; it is stored in the
+app's private preferences and never compiled in. The model is a text field —
+it defaults to a cheap one and any OpenRouter model id works.
+
+### Two things it will never do
+
+**It never deletes anything.** A junk verdict adds the file's path to
+Gramophone's blacklist, which hides it from the library. The file stays on your
+phone, untouched. "Show everything again" reverses the whole thing instantly.
+
+**It never hides on failure.** Missing key, no network, rate limit, a model
+replying with garbage — every failure path leaves files *visible*. The filter is
+built so its worst case is showing too much, never silently swallowing your
+music.
+
+Every hidden file is listed with the reason it was hidden, and a **Keep** button
+that overrides the decision permanently.
+
+### How it hooks into the player
+
+`Reader` walks each file's **own path** before its parent directories when
+testing the blacklist, so an absolute file path in that set hides exactly that
+one file. The filter writes verdicts to a separate `junkFilterPaths` preference,
+and a 6-line patch unions it with your folder blacklist — so the folder
+blacklist screen stays a list of folders, and writing the set is what triggers
+the library refresh.
+
+---
+
+## Using the importer
 
 Two entry points:
 
@@ -136,11 +206,11 @@ adb install -r app/build/outputs/apk/debug/*arm64-v8a*.apk
 builds a patched Media3 from source — expect a few hundred MB), and applies the
 integration.
 
-Run the heuristics tests with `./gradlew :ytdlp:testDebugUnitTest`.
+Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Updating upstream
 
-The integration touches only **30 lines across 4 upstream files**, all anchored
+The integration touches only **48 lines across 5 upstream files**, all anchored
 on distinctive source lines. To move to a newer Gramophone, bump
 `UPSTREAM_COMMIT` in `setup.sh` and re-run it. If an anchor has moved,
 `integrate.py` stops and tells you exactly which edit to apply by hand rather
@@ -151,17 +221,25 @@ than producing a half-patched tree.
 ## What this repository contains
 
 ```
-ytdlp/                     the new Gradle module — all the importer code
-  src/main/java/.../
-    YtDlp.kt               runtime lifecycle: lazy init, update, binary paths
-    TrackMetadata.kt       metadata probe + title-cleaning heuristics
-    ArtworkFinder.kt       iTunes / Deezer / thumbnail cover lookup
-    Ffmpeg.kt              the artwork + tagging pass
-    MusicImporter.kt       MediaStore publication (the player integration)
-    DownloadRepository.kt  the queue and the pipeline
-    DownloadService.kt     foreground service
-    ui/DownloaderActivity.kt   Compose UI + share-target handling
-  src/test/java/.../       unit tests for the title heuristics
+extras/                    the new Gradle module
+  src/main/java/.../extras/
+    importer/              YouTube -> library
+      YtDlp.kt             runtime lifecycle: lazy init, update, binary paths
+      TrackMetadata.kt     metadata probe + title-cleaning heuristics
+      ArtworkFinder.kt     iTunes / Deezer / thumbnail cover lookup
+      Ffmpeg.kt            the artwork + tagging pass
+      MusicImporter.kt     MediaStore publication (the player integration)
+      DownloadRepository.kt   the queue and the pipeline
+      DownloadService.kt   foreground service
+      ui/DownloaderActivity.kt
+    filter/                keeping non-music out
+      AudioCandidate.kt    the model + verdict types (no Android imports)
+      JunkHeuristics.kt    stage one: decisive rules + weighted signals
+      AiClassifier.kt      stage two: OpenRouter, with a pure testable core
+      FilterStore.kt       settings, verdict cache, the hidden-path set
+      LibraryScanner.kt    MediaStore query and orchestration
+      ui/FilterActivity.kt Compose settings + review screen
+  src/test/java/.../       44 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```

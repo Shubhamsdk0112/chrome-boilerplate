@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Importer screen -->
+    <string name="ytdlp_title">Add from YouTube</string>
+    <string name="ytdlp_url_hint">YouTube link</string>
+    <string name="ytdlp_add">Add to library</string>
+    <string name="ytdlp_empty">Paste a link above, or share a video from the YouTube app to Gramophone.\n\nThe first download unpacks the yt-dlp runtime and takes a moment longer than the rest.</string>
+    <string name="ytdlp_clear_finished">Clear finished</string>
+
+    <!-- Stages -->
+    <string name="ytdlp_queued">Waiting…</string>
+    <string name="ytdlp_preparing">Preparing…</string>
+    <string name="ytdlp_reading">Reading video info…</string>
+    <string name="ytdlp_downloading">Downloading — %1$d%%</string>
+    <string name="ytdlp_finding_artwork">Looking for album art…</string>
+    <string name="ytdlp_tagging">Writing tags…</string>
+    <string name="ytdlp_importing">Adding to library…</string>
+    <string name="ytdlp_done">Added to your library</string>
+    <string name="ytdlp_done_with_art">Added to your library · art from %1$s</string>
+    <string name="ytdlp_cancelled">Cancelled</string>
+
+    <!-- yt-dlp maintenance -->
+    <string name="ytdlp_update">Update yt-dlp</string>
+    <string name="ytdlp_updating">Updating yt-dlp…</string>
+    <string name="ytdlp_updated">yt-dlp is now %1$s</string>
+    <string name="ytdlp_update_failed">Could not update yt-dlp</string>
+
+    <!-- Notification -->
+    <string name="ytdlp_notification_title">Importing music</string>
+    <string name="ytdlp_notification_channel">Music import</string>
+
+    <!-- Settings entry, referenced from the app module -->
+    <string name="ytdlp_settings_title">Add from YouTube</string>
+    <string name="ytdlp_settings_summary">Download songs with yt-dlp and add them to your library</string>
+
+    <!-- ============ Library filter ============ -->
+    <string name="filter_title">Filter library</string>
+    <string name="filter_explainer">Hides things that are not music — WhatsApp voice notes, call recordings, ringtones, video files — so your library only shows songs.\n\nNothing is ever deleted. Hidden files stay on your phone and you can put any of them back.</string>
+
+    <string name="filter_enable">Hide non-music</string>
+    <string name="filter_enable_summary">Turning this off shows everything again straight away</string>
+
+    <string name="filter_what_to_hide">What counts as junk</string>
+    <string name="filter_voice_notes">Voice notes and recordings</string>
+    <string name="filter_voice_notes_summary">WhatsApp, Telegram, Signal, call and voice recorders</string>
+    <string name="filter_ringtones">Ringtones, alarms and notification sounds</string>
+    <string name="filter_video">Video files</string>
+    <string name="filter_short">Short untagged clips</string>
+    <string name="filter_short_summary">Under 30 seconds with no artist or album. Tagged short tracks are kept.</string>
+    <string name="filter_podcasts">Podcasts and audiobooks</string>
+    <string name="filter_podcasts_summary">Off by default — these are real audio, just not songs</string>
+
+    <string name="filter_ai">Ask an AI about the leftovers</string>
+    <string name="filter_ai_summary">Only for files the rules above cannot place. Usually a handful.</string>
+    <string name="filter_api_key">OpenRouter API key</string>
+    <string name="filter_api_key_help">Stored only on this device. Get one at openrouter.ai/keys</string>
+    <string name="filter_model">Model</string>
+    <string name="filter_model_help">Any OpenRouter model id. Default: %1$s</string>
+    <string name="filter_privacy">Only filenames, folders, durations and tags are sent. Your audio never leaves the phone.</string>
+
+    <string name="filter_scan">Scan library</string>
+    <string name="filter_scanning">Scanning…</string>
+    <string name="filter_stage_querying">Reading your library…</string>
+    <string name="filter_stage_classifying">Sorting %1$d of %2$d…</string>
+    <string name="filter_stage_ai">Asking the AI about %1$d of %2$d…</string>
+    <string name="filter_stage_saving">Applying…</string>
+
+    <string name="filter_result_hidden">Hid %1$d of %2$d files</string>
+    <string name="filter_result_kept">%1$d kept as music, %2$d left visible because they were unclear</string>
+    <string name="filter_result_ai">The AI settled %1$d of %2$d unclear files</string>
+    <string name="filter_unhide_all">Show everything again</string>
+    <string name="filter_review">Hidden files</string>
+    <string name="filter_keep">Keep</string>
+
+    <string name="filter_settings_title">Filter library</string>
+    <string name="filter_settings_summary">Hide voice notes, recordings and other non-music</string>
+</resources>

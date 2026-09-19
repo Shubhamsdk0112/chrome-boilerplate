@@ -2,7 +2,7 @@
 #
 # Builds the forked player from scratch:
 #   1. clones Gramophone at the commit this integration was verified against
-#   2. copies the :ytdlp module in and wires it up
+#   2. copies the :extras module in and wires it up
 #   3. leaves you with a tree you can build or open in Android Studio
 #
 # Requires: git, python3, JDK 21, and the Android SDK (ANDROID_HOME) with NDK.
@@ -32,7 +32,7 @@ git -C "$CHECKOUT" checkout --quiet "$UPSTREAM_COMMIT"
 echo "==> Fetching submodules (this pulls a patched Media3, expect a few hundred MB)"
 git -C "$CHECKOUT" submodule update --init --recursive
 
-echo "==> Applying the :ytdlp integration"
+echo "==> Applying the :extras integration"
 python3 "$HERE/integrate/integrate.py" "$CHECKOUT"
 
 # The app module reads this for its version suffix; upstream gitignores it.
@@ -45,7 +45,7 @@ cat <<NEXT
 Ready.
 
   cd $CHECKOUT
-  ./gradlew :ytdlp:testDebugUnitTest     # heuristics tests
+  ./gradlew :extras:testDebugUnitTest    # unit tests
   ./gradlew :app:assembleDebug           # per-ABI debug APKs
 
 APKs land in app/build/outputs/apk/debug/. Install the arm64-v8a one:

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- yt-dlp and the artwork lookups need the network. Upstream Gramophone is
+         a strictly offline player and declares no INTERNET permission, so it is
+         introduced here and merged into the app manifest.
+         Note we deliberately do NOT ask for ACCESS_NETWORK_STATE: upstream
+         removes it on purpose, and nothing in this module reads it. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The importer runs as a foreground service so a long download is not
+         killed when the user leaves the app. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+        android:minSdkVersion="34" />
+
+    <application>
+        <activity
+            android:name="org.akanework.gramophone.extras.importer.ui.DownloaderActivity"
+            android:exported="true"
+            android:label="@string/ytdlp_title"
+            android:launchMode="singleTop"
+            android:taskAffinity="">
+
+            <!-- Share a video from the YouTube app straight into the library. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="org.akanework.gramophone.extras.filter.ui.FilterActivity"
+            android:exported="false"
+            android:label="@string/filter_title" />
+
+        <service
+            android:name="org.akanework.gramophone.extras.importer.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+</manifest>

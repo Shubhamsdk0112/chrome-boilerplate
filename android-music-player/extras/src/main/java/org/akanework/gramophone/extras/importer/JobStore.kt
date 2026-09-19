@@ -78,6 +78,7 @@ internal object JobStore {
         put("kind", job.kind.name)
         put("feedUrl", job.feedUrl)
         put("episodeGuid", job.episodeGuid)
+        put("attempts", job.attempts)
         when (val s = job.stage) {
             is JobStage.Done -> {
                 put("stage", "done")
@@ -122,6 +123,7 @@ internal object JobStore {
             kind = runCatching { JobKind.valueOf(o.optString("kind")) }.getOrDefault(JobKind.YOUTUBE),
             feedUrl = o.optString("feedUrl").takeIf { it.isNotBlank() },
             episodeGuid = o.optString("episodeGuid").takeIf { it.isNotBlank() },
+            attempts = o.optInt("attempts", 0),
         )
     }
 }

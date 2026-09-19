@@ -27,6 +27,8 @@
     <string name="ytdlp_cancel">Cancel</string>
     <string name="ytdlp_play">Play</string>
     <string name="ytdlp_paste">Paste link</string>
+    <string name="ytdlp_retrying">Retrying in %1$d s (try %2$d of 3)…</string>
+    <string name="ytdlp_retry_all">Retry all failed</string>
     <string name="ytdlp_nothing_to_paste">Nothing on the clipboard looks like a link</string>
 
     <!-- yt-dlp maintenance -->
@@ -65,6 +67,17 @@
     <string name="podcast_minutes_left">%1$d min left</string>
     <string name="podcast_settings_title">Podcasts</string>
     <string name="podcast_settings_summary">Follow shows, download episodes, pick up where you left off</string>
+
+    <!-- ============ Listening history ============ -->
+    <string name="history_title">Listening history</string>
+    <string name="history_recent">Recently played</string>
+    <string name="history_most">Most played</string>
+    <string name="history_empty">Songs you play for at least 30 seconds show up here.</string>
+    <string name="history_play_all">Play all (%1$d)</string>
+    <string name="history_plays">%1$d plays</string>
+    <string name="history_clear">Clear history</string>
+    <string name="history_settings_title">Listening history</string>
+    <string name="history_settings_summary">Recently played and most played</string>
 
     <!-- ============ Library filter ============ -->
     <string name="filter_title">Filter library</string>

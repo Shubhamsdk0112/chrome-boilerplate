@@ -234,6 +234,24 @@ def main(root: Path) -> int:
         marker='android:key="podcasts"',
     ))
 
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_top.xml",
+        anchor="""    <Preference
+        android:icon="@drawable/ic_extras_filter"
+        android:key="libraryFilter\"""",
+        replacement="""    <Preference
+        android:icon="@drawable/ic_extras_history"
+        android:key="history"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/history_settings_summary"
+        android:title="@string/history_settings_title" />
+
+    <Preference
+        android:icon="@drawable/ic_extras_filter"
+        android:key="libraryFilter\"""",
+        marker='android:key="history"',
+    ))
+
     fragment = (
         root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
         / "ui" / "fragments" / "settings" / "MainSettingsFragment.kt"
@@ -278,6 +296,29 @@ def main(root: Path) -> int:
             "import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity"
         ),
         marker="import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity",
+    ))
+    steps.append(patch(
+        fragment,
+        anchor="""            "podcasts" -> {
+                startActivity(PodcastsActivity::class.java)
+            }""",
+        replacement="""            "podcasts" -> {
+                startActivity(PodcastsActivity::class.java)
+            }
+
+            "history" -> {
+                startActivity(HistoryActivity::class.java)
+            }""",
+        marker='"history" ->',
+    ))
+    steps.append(patch(
+        fragment,
+        anchor="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
+        replacement=(
+            "import org.akanework.gramophone.extras.history.ui.HistoryActivity\n"
+            "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity"
+        ),
+        marker="import org.akanework.gramophone.extras.history.ui.HistoryActivity",
     ))
     steps.append(patch(
         fragment,
@@ -398,6 +439,42 @@ def main(root: Path) -> int:
         ),
         marker="import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity",
     ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "menu" / "home_menu.xml",
+        anchor="""    <item
+        android:id="@+id/settings\"""",
+        replacement="""    <item
+        android:id="@+id/history"
+        android:icon="@drawable/ic_extras_history"
+        android:title="@string/history_title"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/settings\"""",
+        marker='android:id="@+id/history"',
+    ))
+    steps.append(patch(
+        pager,
+        anchor="""                R.id.podcasts -> {
+                    activity.startActivity(Intent(activity, PodcastsActivity::class.java))
+                }""",
+        replacement="""                R.id.podcasts -> {
+                    activity.startActivity(Intent(activity, PodcastsActivity::class.java))
+                }
+
+                R.id.history -> {
+                    activity.startActivity(Intent(activity, HistoryActivity::class.java))
+                }""",
+        marker="R.id.history ->",
+    ))
+    steps.append(patch(
+        pager,
+        anchor="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
+        replacement=(
+            "import org.akanework.gramophone.extras.history.ui.HistoryActivity\n"
+            "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity"
+        ),
+        marker="import org.akanework.gramophone.extras.history.ui.HistoryActivity",
+    ))
 
     # ------------------------------------------------------------------
     # 7. Teach the library reader about per-file exclusions.
@@ -455,6 +532,15 @@ def main(root: Path) -> int:
         // Resumes any :extras download that a process death interrupted.
         org.akanework.gramophone.extras.importer.DownloadRepository.resumeOnStartup(this)""",
         marker="DownloadRepository.resumeOnStartup",
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "GramophoneApplication.kt",
+        anchor="""        org.akanework.gramophone.extras.importer.DownloadRepository.resumeOnStartup(this)""",
+        replacement="""        org.akanework.gramophone.extras.importer.DownloadRepository.resumeOnStartup(this)
+        // Counts plays and remembers when, for the listening history screen.
+        org.akanework.gramophone.extras.history.ListeningHistory.start(this)""",
+        marker="ListeningHistory.start",
     ))
 
     print(f"Integrating :extras into {root}")

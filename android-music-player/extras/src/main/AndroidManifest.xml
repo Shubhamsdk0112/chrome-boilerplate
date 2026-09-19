@@ -37,6 +37,11 @@
             android:label="@string/podcast_title" />
 
         <activity
+            android:name="org.akanework.gramophone.extras.history.ui.HistoryActivity"
+            android:exported="false"
+            android:label="@string/history_title" />
+
+        <activity
             android:name="org.akanework.gramophone.extras.filter.ui.FilterActivity"
             android:exported="false"
             android:label="@string/filter_title" />

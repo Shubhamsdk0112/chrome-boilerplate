@@ -251,6 +251,15 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                                 }
                             },
                         )
+                        if (jobs.any { it.stage is JobStage.Failed }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.ytdlp_retry_all)) },
+                                onClick = {
+                                    menuOpen = false
+                                    repository.retryAllFailed()
+                                },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.ytdlp_clear_finished)) },
                             onClick = {
@@ -450,7 +459,7 @@ private fun JobCard(
                     progress = { stage.progress / 100f },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                is JobStage.Queued, is JobStage.Reading, is JobStage.Updating,
+                is JobStage.Queued, is JobStage.Reading, is JobStage.Updating, is JobStage.Retrying,
                 is JobStage.FindingArtwork, is JobStage.Tagging, is JobStage.Importing ->
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 else -> Unit
@@ -533,6 +542,8 @@ private fun StatusLine(stage: JobStage) {
         is JobStage.Failed -> stage.message to MaterialTheme.colorScheme.error
         is JobStage.Cancelled ->
             stringResource(R.string.ytdlp_cancelled) to MaterialTheme.colorScheme.onSurfaceVariant
+        is JobStage.Retrying ->
+            stringResource(R.string.ytdlp_retrying, stage.inSeconds, stage.attempt) to MaterialTheme.colorScheme.onSurfaceVariant
         else -> stringResource(stage.labelRes()) to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Text(

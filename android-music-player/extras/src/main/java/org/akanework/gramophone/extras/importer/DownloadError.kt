@@ -123,6 +123,25 @@ object DownloadError {
     )
 
     /**
+     * Whether [text] describes a failure that tends to pass on its own — the
+     * network, a rate limit, a server hiccup — and is worth retrying after a
+     * pause without asking anyone.
+     */
+    fun isTransient(text: String?): Boolean {
+        val haystack = text?.lowercase().orEmpty()
+        return TRANSIENT_NEEDLES.any { haystack.contains(it) }
+    }
+
+    private val TRANSIENT_NEEDLES = listOf(
+        "unable to download webpage", "getaddrinfo", "name or service not known",
+        "network is unreachable", "temporary failure in name resolution",
+        "connection refused", "connection reset", "timed out", "timeout",
+        "http error 429", "too many requests", "http error 5", "connection closed",
+        "remote end closed", "incomplete read", "eof occurred", "unable to download video data",
+        "no address associated", "software caused connection abort", "read error",
+    )
+
+    /**
      * @param stderr yt-dlp's error output
      * @param fallback used when [stderr] is empty
      */

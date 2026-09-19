@@ -17,16 +17,13 @@
 
 package org.akanework.gramophone.extras.podcast
 
-import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,11 +34,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import org.akanework.gramophone.extras.player.SessionBridge
 import java.io.File
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /**
  * Plays episodes through Gramophone's own playback service.
@@ -59,7 +54,6 @@ object PodcastPlayer {
 
     private const val TAG = "PodcastPlayer"
     private const val ID_PREFIX = "podcast:"
-    private const val SERVICE = "org.akanework.gramophone.logic.GramophonePlaybackService"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -152,21 +146,8 @@ object PodcastPlayer {
     // ------------------------------------------------------------------
 
     private suspend fun connect(app: Context): MediaController {
-        controller?.takeIf { it.isConnected }?.let { return it }
-        val token = SessionToken(app, ComponentName(app, SERVICE))
-        val future = MediaController.Builder(app, token).buildAsync()
-        val built = suspendCancellableCoroutine { cont ->
-            future.addListener(
-                {
-                    runCatching { future.get() }
-                        .onSuccess { cont.resume(it) }
-                        .onFailure { cont.resumeWithException(it) }
-                },
-                ContextCompat.getMainExecutor(app),
-            )
-            cont.invokeOnCancellation { future.cancel(true) }
-        }
-        built.addListener(listener)
+        SessionBridge.addListener(listener)
+        val built = SessionBridge.controller(app)
         controller = built
         return built
     }

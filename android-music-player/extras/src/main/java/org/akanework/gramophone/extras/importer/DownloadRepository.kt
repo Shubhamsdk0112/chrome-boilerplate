@@ -115,6 +115,8 @@ sealed interface JobStage {
     ) : JobStage
     data class Failed(val message: String) : JobStage
     data object Cancelled : JobStage
+    /** Failed in a way that tends to pass; will run again after [inSeconds]. */
+    data class Retrying(val inSeconds: Int, val attempt: Int) : JobStage
 
     val isTerminal: Boolean
         get() = this is Done || this is Failed || this is Cancelled
@@ -137,6 +139,8 @@ data class DownloadJob(
     /** Podcast jobs: which episode of which feed. */
     val feedUrl: String? = null,
     val episodeGuid: String? = null,
+    /** How many automatic retries this job has already had. */
+    val attempts: Int = 0,
 ) {
     val label: String get() = title ?: url
 }
@@ -245,6 +249,32 @@ class DownloadRepository(private val context: Context) {
         scheduleSave()
     }
 
+    /** Everything that failed, back into the queue. */
+    fun retryAllFailed() {
+        _jobs.value.filter { it.stage is JobStage.Failed }.forEach { retry(it.id) }
+    }
+
+    /**
+     * Whether a failure is worth an automatic retry, and if so, schedules it.
+     * Three tries with growing pauses; a kill during the pause leaves the job
+     * queued on disk, so it runs again on the next start anyway.
+     */
+    private fun scheduleRetryIfTransient(jobId: String, rawError: String?): Boolean {
+        val job = _jobs.value.firstOrNull { it.id == jobId } ?: return false
+        if (job.attempts >= MAX_AUTO_RETRIES || !DownloadError.isTransient(rawError)) return false
+        val wait = RETRY_BACKOFF_SECONDS[job.attempts.coerceIn(0, RETRY_BACKOFF_SECONDS.lastIndex)]
+        Log.i(TAG, "transient failure for ${job.url}, retry ${job.attempts + 1} in ${wait}s")
+        update(jobId) { it.copy(stage = JobStage.Retrying(wait, it.attempts + 1)) }
+        scope.launch {
+            delay(wait * 1_000L)
+            val still = _jobs.value.firstOrNull { it.id == jobId } ?: return@launch
+            if (still.stage !is JobStage.Retrying) return@launch
+            update(jobId) { it.copy(stage = JobStage.Queued, attempts = it.attempts + 1) }
+            queue.trySend(jobId)
+        }
+        return true
+    }
+
     /** Queues a failed or cancelled job again, in place of the old card. */
     fun retry(jobId: String) {
         val old = _jobs.value.firstOrNull { it.id == jobId } ?: return
@@ -326,14 +356,20 @@ class DownloadRepository(private val context: Context) {
             // it, with yt-dlp's whole stderr as the message. Seen on a device:
             // without this branch the card shows a Python traceback.
             Log.e(TAG, "import failed for ${job.url}", e)
-            update(jobId) { it.copy(stage = JobStage.Failed(DownloadError.humanize(e.message))) }
+            if (!scheduleRetryIfTransient(jobId, e.message)) {
+                update(jobId) { it.copy(stage = JobStage.Failed(DownloadError.humanize(e.message))) }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "import failed for ${job.url}", e)
-            update(jobId) {
-                it.copy(stage = JobStage.Failed(e.message ?: e::class.java.simpleName))
+            val raw = (e as? YtDlpFailure)?.stderr ?: e.message
+            if (!scheduleRetryIfTransient(jobId, raw)) {
+                update(jobId) {
+                    it.copy(stage = JobStage.Failed(e.message ?: e::class.java.simpleName))
+                }
             }
         } finally {
-            workDir.deleteRecursively()
+            // Keep the .part when a retry is pending; yt-dlp resumes from it.
+            if (currentStage(jobId) !is JobStage.Retrying) workDir.deleteRecursively()
         }
     }
 
@@ -398,8 +434,10 @@ class DownloadRepository(private val context: Context) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "episode download failed for ${episode.audioUrl}", e)
-                update(jobId) {
-                    it.copy(stage = JobStage.Failed(e.message?.let { m -> "Download failed: $m" } ?: "Download failed."))
+                if (!scheduleRetryIfTransient(jobId, e.message)) {
+                    update(jobId) {
+                        it.copy(stage = JobStage.Failed(e.message?.let { m -> "Download failed: $m" } ?: "Download failed."))
+                    }
                 }
             }
         }
@@ -515,6 +553,8 @@ class DownloadRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "DownloadRepository"
+        private const val MAX_AUTO_RETRIES = 3
+        private val RETRY_BACKOFF_SECONDS = intArrayOf(15, 45, 120)
 
         /**
          * Picks the audio file yt-dlp produced.

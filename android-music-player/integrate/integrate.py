@@ -594,6 +594,23 @@ def main(root: Path) -> int:
     ))
 
     # ------------------------------------------------------------------
+    # 7b. Ask before throwing the user's data away on uninstall. Songs live
+    #     in Music/ and survive anyway; podcast episodes, positions, history
+    #     and the filter's Keep choices are app-private and would not. With
+    #     this flag Android 10+ offers a "Keep app data" box in the uninstall
+    #     dialog, and a later reinstall picks everything up again.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "AndroidManifest.xml",
+        anchor="""        android:allowBackup="true"
+        android:appCategory="audio\"""",
+        replacement="""        android:allowBackup="true"
+        android:hasFragileUserData="true"
+        android:appCategory="audio\"""",
+        marker="hasFragileUserData",
+    ))
+
+    # ------------------------------------------------------------------
     # 8a. Run the library filter before the library is read, so a fresh
     #     install never shows the voice notes at all and a re-open catches
     #     what arrived while the app was dead. updateLibrary is the one

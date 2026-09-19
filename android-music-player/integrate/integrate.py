@@ -100,6 +100,11 @@ def main(root: Path) -> int:
     # ------------------------------------------------------------------
     # 4. Split by ABI. A universal APK carrying four copies of CPython and
     #    ffmpeg is ~220 MB; one ABI is ~65 MB.
+    #
+    #    x86_64 is included for the emulator. Without it the app installs on an
+    #    emulator but has no CPython or ffmpeg to execute, so every download
+    #    fails at startup with nothing obvious to point at. Splits mean this is
+    #    an extra APK file, not extra bytes in the phone one.
     # ------------------------------------------------------------------
     steps.append(patch(
         app_gradle,
@@ -111,7 +116,7 @@ def main(root: Path) -> int:
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a")
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = false
         }
     }

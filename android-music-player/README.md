@@ -255,6 +255,10 @@ cd build/Gramophone
 adb install -r app/build/outputs/apk/debug/*arm64-v8a*.apk
 ```
 
+One APK is produced per architecture. Use **arm64-v8a** for a real phone and
+**x86_64** for an emulator — picking the wrong one installs fine but leaves the
+app with no CPython or ffmpeg to run, so every download fails at startup.
+
 `setup.sh` clones Gramophone at a pinned commit, fetches its submodules (it
 builds a patched Media3 from source — expect a few hundred MB), and applies the
 integration.

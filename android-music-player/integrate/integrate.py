@@ -594,6 +594,28 @@ def main(root: Path) -> int:
     ))
 
     # ------------------------------------------------------------------
+    # 8a. Run the library filter before the library is read, so a fresh
+    #     install never shows the voice notes at all and a re-open catches
+    #     what arrived while the app was dead. updateLibrary is the one
+    #     chokepoint: first launch, permission grant, pull-to-refresh.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "ui" / "MainActivity.kt",
+        anchor="""            this@MainActivity.gramophoneApplication.reader.refresh()
+            withContext(Dispatchers.Main) {
+                onLibraryLoaded()""",
+        replacement="""            // :extras library filter, ahead of the read so the first list is
+            // already clean. Cached verdicts make a repeat pass cheap.
+            org.akanework.gramophone.extras.filter.FilterWatcher
+                .scanIfEnabled(this@MainActivity.gramophoneApplication)
+            this@MainActivity.gramophoneApplication.reader.refresh()
+            withContext(Dispatchers.Main) {
+                onLibraryLoaded()""",
+        marker="FilterWatcher.scanIfEnabled",
+    ))
+
+    # ------------------------------------------------------------------
     # 8b. Pick up downloads that a process death interrupted. One small file
     #     read on IO when there is nothing to do. Anchored on the line the
     #     previous patch inserted, so it applies to old and new checkouts.

@@ -47,13 +47,18 @@ class FilterStore(context: Context) {
     // Settings
     // ------------------------------------------------------------------
 
+    /**
+     * On by default: the rules are conservative, every hidden file is listed
+     * with its reason and a Keep button, and a phone full of voice notes is
+     * the normal case, not the exception. The AI pass stays opt-in.
+     */
     var enabled: Boolean
-        get() = own.getBoolean("enabled", false)
+        get() = own.getBoolean("enabled", true)
         set(value) = own.edit { putBoolean("enabled", value) }
 
     /** Re-run the filter automatically when new audio appears. */
     var autoRescan: Boolean
-        get() = own.getBoolean("auto_rescan", false)
+        get() = own.getBoolean("auto_rescan", true)
         set(value) = own.edit { putBoolean("auto_rescan", value) }
 
     var aiEnabled: Boolean

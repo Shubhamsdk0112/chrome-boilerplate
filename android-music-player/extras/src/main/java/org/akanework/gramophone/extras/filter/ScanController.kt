@@ -74,6 +74,19 @@ object ScanController {
         }
     }
 
+    /**
+     * Runs a scan — or joins the one already in flight — and returns when it
+     * has finished. Used at library load so the first list the user sees is
+     * already clean. Never throws: a failed scan is reported through [error].
+     */
+    suspend fun scanAndWait(context: Context) {
+        val current = synchronized(this) {
+            start(context)
+            job
+        }
+        current?.join()
+    }
+
     /** Drops the last result, e.g. after the user restores everything. */
     fun clearResult() {
         _result.value = null

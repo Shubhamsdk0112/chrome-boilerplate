@@ -30,6 +30,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Re-runs the filter when new audio appears, so junk never accumulates again.
@@ -39,13 +40,16 @@ import kotlinx.coroutines.launch
  * and scan. Messaging apps produce those continuously, which is exactly the
  * problem the filter exists to solve.
  *
- * Three things keep it from being expensive:
+ * Two things keep it from being expensive:
  *
- *  - It is **opt-in** and off by default.
  *  - Verdicts are cached, so a re-scan only does real work for files it has
  *    not seen. The common case is a handful of new files.
  *  - Changes are **debounced**. Copying an album fires a burst of notifications
  *    and we want one scan at the end, not one per track.
+ *
+ * The observer only lives while the process does, so [scanIfEnabled] runs at
+ * every library load as well: that is what catches the voice notes that
+ * arrived while the app was not running.
  */
 object FilterWatcher {
 
@@ -104,6 +108,23 @@ object FilterWatcher {
         }
     }
 
+    /**
+     * Runs the filter now and returns when it is done, unless it is switched
+     * off. The patched `MainActivity.updateLibrary` calls this right before
+     * the library is read, so a fresh install never shows the junk at all —
+     * and a re-open catches whatever arrived while the app was dead.
+     *
+     * Runs on IO; safe to call without a permission (the scan logs and hides
+     * nothing) and never throws.
+     */
+    suspend fun scanIfEnabled(context: Context) = withContext(Dispatchers.IO) {
+        val appContext = context.applicationContext
+        runCatching {
+            if (FilterStore(appContext).enabled) ScanController.scanAndWait(appContext)
+        }.onFailure { Log.w(TAG, "startup scan failed", it) }
+        Unit
+    }
+
     @Synchronized
     fun stop(context: Context) {
         pending?.cancel()
@@ -121,9 +142,10 @@ object FilterWatcher {
             delay(DEBOUNCE_MS)
             val store = FilterStore(context)
             if (!store.enabled || !store.autoRescan) return@launch
-            runCatching { LibraryScanner(context).scan() }
-                .onSuccess { Log.i(TAG, "re-scan hid ${it.hidden} of ${it.total}") }
-                .onFailure { Log.w(TAG, "re-scan failed", it) }
+            // Through the controller so it never races a scan the user
+            // started from the settings screen.
+            Log.i(TAG, "new audio, re-scanning")
+            ScanController.start(context)
         }
     }
 }

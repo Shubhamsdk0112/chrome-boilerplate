@@ -16,7 +16,8 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        minSdk = 23
+        // youtubedl-android's floor; the app module is raised to match.
+        minSdk = 24
         consumerProguardFiles("consumer-rules.pro")
     }
 
@@ -59,6 +60,9 @@ dependencies {
     api("io.github.junkfood02.youtubedl-android:ffmpeg:$ytdlpVersion")
 
     implementation("androidx.core:core-ktx:1.17.0")
+    // FilterStore writes into the app's default SharedPreferences, which the
+    // app reads through androidx.preference; same version as the app module.
+    implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")

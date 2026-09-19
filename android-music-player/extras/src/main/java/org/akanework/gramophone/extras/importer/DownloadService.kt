@@ -34,6 +34,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import org.akanework.gramophone.extras.R
 
 /**
  * Keeps the import queue running while the user is somewhere else.

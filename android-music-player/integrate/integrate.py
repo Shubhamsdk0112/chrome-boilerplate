@@ -98,6 +98,22 @@ def main(root: Path) -> int:
     ))
 
     # ------------------------------------------------------------------
+    # 3b. youtubedl-android declares minSdk 24 and the manifest merger refuses
+    #     to build an app below a library's floor. Upstream is at 23 (Android
+    #     6.0, which has effectively no users left); raising it is the honest
+    #     fix, as tools:overrideLibrary would only move the failure to runtime.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        app_gradle,
+        anchor="""        applicationId = appIdOverride ?: "org.akanework.gramophone"
+        minSdk = 23""",
+        replacement="""        applicationId = appIdOverride ?: "org.akanework.gramophone"
+        // 24, not upstream's 23: the :extras module's yt-dlp runtime needs it.
+        minSdk = 24""",
+        marker="yt-dlp runtime needs it",
+    ))
+
+    # ------------------------------------------------------------------
     # 4. Split by ABI. A universal APK carrying four copies of CPython and
     #    ffmpeg is ~220 MB; one ABI is ~65 MB.
     #

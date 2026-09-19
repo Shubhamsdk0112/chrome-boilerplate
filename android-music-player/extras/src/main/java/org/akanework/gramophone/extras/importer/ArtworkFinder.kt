@@ -27,7 +27,6 @@ import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
-import kotlin.math.min
 
 /**
  * Cover art, plus anything else the lookup taught us about the release.
@@ -36,16 +35,12 @@ import kotlin.math.min
  * album a song belongs to, so without this every import would land in the
  * library as its own one-track album.
  */
-data class Artwork(
+class Artwork(
     val jpeg: ByteArray,
     val album: String? = null,
     val year: String? = null,
     val source: String,
-) {
-    // ByteArray in a data class needs these to behave sanely.
-    override fun equals(other: Any?) = this === other
-    override fun hashCode() = System.identityHashCode(this)
-}
+)
 
 /**
  * Finds a square cover for a track.
@@ -59,6 +54,14 @@ object ArtworkFinder {
     private const val TAG = "ArtworkFinder"
     private const val TIMEOUT_MS = 12_000
     private const val UA = "Gramophone-Importer/1.0 (+https://github.com/AkaneTan/Gramophone)"
+
+    /** Title overlap needed when the artist corroborates the match. */
+    private const val TITLE_THRESHOLD = 0.5
+
+    /** Title overlap needed when the artist is unknown and nothing else does. */
+    private const val TITLE_ONLY_THRESHOLD = 0.9
+
+    private const val ARTIST_THRESHOLD = 0.34
 
     suspend fun find(meta: TrackMetadata): Artwork? = withContext(Dispatchers.IO) {
         fromITunes(meta)
@@ -150,24 +153,41 @@ object ArtworkFinder {
 
     /**
      * Guards against confidently tagging a song with someone else's cover.
+     *
      * A catalogue will happily return *something* for any query, so a result is
-     * only accepted when the title overlaps strongly and — when we know the
-     * artist — the artist overlaps too.
+     * accepted only on a strong match. The artist is what makes that judgement
+     * safe, so when we do not know it the bar on the title rises sharply:
+     * plenty of different songs share a title, and a wrong cover is worse than
+     * the cropped video thumbnail we fall back to.
      */
-    private fun matches(meta: TrackMetadata, candidateTitle: String, candidateArtist: String): Boolean {
+    internal fun matches(
+        meta: TrackMetadata,
+        candidateTitle: String,
+        candidateArtist: String,
+    ): Boolean {
         if (candidateTitle.isBlank()) return false
-        if (similarity(meta.title, candidateTitle) < 0.5) return false
-        val artist = meta.artist?.takeIf { it.isNotBlank() } ?: return true
-        return similarity(artist, candidateArtist) >= 0.34
+        val titleScore = similarity(meta.title, candidateTitle)
+        val artist = meta.artist?.takeIf { it.isNotBlank() }
+            ?: return titleScore >= TITLE_ONLY_THRESHOLD
+        if (titleScore < TITLE_THRESHOLD) return false
+        return similarity(artist, candidateArtist) >= ARTIST_THRESHOLD
     }
 
-    /** Jaccard overlap of normalised word tokens. */
-    private fun similarity(a: String, b: String): Double {
+    /**
+     * Token overlap, divided by the *larger* set.
+     *
+     * Dividing by the smaller one makes a subset score a perfect 1.0, so
+     * "Lucky" would match "Get Lucky" exactly — precisely the confusion this is
+     * meant to prevent. Against the larger set, a genuine match with an extra
+     * qualifier like "(Radio Edit)" still scores well enough to pass when the
+     * artist confirms it, and fails when nothing else corroborates it.
+     */
+    internal fun similarity(a: String, b: String): Double {
         val ta = tokens(a)
         val tb = tokens(b)
         if (ta.isEmpty() || tb.isEmpty()) return 0.0
         val intersection = ta.intersect(tb).size.toDouble()
-        return intersection / min(ta.size, tb.size)
+        return intersection / maxOf(ta.size, tb.size)
     }
 
     private fun tokens(s: String): Set<String> = s.lowercase()
@@ -182,7 +202,7 @@ object ArtworkFinder {
 
     private fun centreCropSquare(bytes: ByteArray): ByteArray? = runCatching {
         val src = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-        val side = min(src.width, src.height)
+        val side = minOf(src.width, src.height)
         val cropped = Bitmap.createBitmap(
             src, (src.width - side) / 2, (src.height - side) / 2, side, side
         )

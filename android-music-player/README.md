@@ -91,8 +91,9 @@ library grid. The importer asks the iTunes Search API and then Deezer — both
 answer without an API key — and only falls back to a centre-cropped thumbnail
 when neither recognises the song. Those lookups also recover the **album name**,
 which YouTube doesn't know, so imports don't each become their own one-track
-album. Results are only accepted when the title and artist overlap strongly
-enough, so you don't get confidently mis-tagged covers.
+album. Results are only accepted on a strong match, and the bar rises sharply when the
+artist is unknown — plenty of different songs share a title, and a wrong cover
+that looks deliberate is worse than falling back to the video's own thumbnail.
 
 **Downloads are staged in the cache directory** and only copied into your music
 folder once complete and tagged, so a cancelled or failed job can never leave a
@@ -262,7 +263,7 @@ Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Verifying without the Android SDK
 
-`./verify.sh` compiles the module and runs all 75 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 84 unit tests using only Maven
 Central — a real `android.jar` (Robolectric publishes full framework jars), the
 actual youtubedl-android classes from its published `.aar`, and two tiny local
 stubs for the androidx symbols, since androidx is published only on Google's
@@ -306,7 +307,7 @@ extras/                    the new Gradle module
       LibraryScanner.kt    MediaStore query and orchestration
       FilterWatcher.kt     opt-in re-scan when new audio appears
       ui/FilterActivity.kt Compose settings + review screen
-  src/test/java/.../       75 unit tests
+  src/test/java/.../       84 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```

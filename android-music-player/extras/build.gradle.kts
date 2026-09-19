@@ -59,6 +59,12 @@ dependencies {
     api("io.github.junkfood02.youtubedl-android:library:$ytdlpVersion")
     api("io.github.junkfood02.youtubedl-android:ffmpeg:$ytdlpVersion")
 
+    // Podcast playback goes through the app's own MediaLibraryService, via
+    // a MediaController. Same version string as the app; the root build's
+    // dependencySubstitution redirects it to the patched Media3 checkout.
+    implementation("androidx.media3:media3-session:1.10.1")
+    implementation("androidx.media3:media3-common:1.10.1")
+
     implementation("androidx.core:core-ktx:1.17.0")
     // FilterStore writes into the app's default SharedPreferences, which the
     // app reads through androidx.preference; same version as the app module.

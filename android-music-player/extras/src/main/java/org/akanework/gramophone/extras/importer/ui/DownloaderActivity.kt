@@ -18,6 +18,7 @@
 package org.akanework.gramophone.extras.importer.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -44,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.MoreVert
@@ -214,6 +216,11 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.ytdlp_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { (context as? Activity)?.finish() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
                 actions = {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = null)
@@ -388,7 +395,7 @@ private fun JobCard(
 
     val cardColors = when {
         failed -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-        done != null -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        done != null -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         else -> CardDefaults.cardColors()
     }
 

@@ -32,6 +32,11 @@
         </activity>
 
         <activity
+            android:name="org.akanework.gramophone.extras.podcast.ui.PodcastsActivity"
+            android:exported="false"
+            android:label="@string/podcast_title" />
+
+        <activity
             android:name="org.akanework.gramophone.extras.filter.ui.FilterActivity"
             android:exported="false"
             android:label="@string/filter_title" />

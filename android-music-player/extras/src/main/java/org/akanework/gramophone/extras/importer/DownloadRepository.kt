@@ -35,6 +35,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.akanework.gramophone.extras.podcast.Episode
+import org.akanework.gramophone.extras.podcast.EpisodeDownloader
+import org.akanework.gramophone.extras.podcast.Podcast
+import org.akanework.gramophone.extras.podcast.PodcastSearch
+import org.akanework.gramophone.extras.podcast.PodcastStore
 import java.io.File
 import java.util.UUID
 
@@ -114,6 +119,9 @@ sealed interface JobStage {
         get() = this is Done || this is Failed || this is Cancelled
 }
 
+/** What a job downloads. Podcast episodes share the queue, service and cards. */
+enum class JobKind { YOUTUBE, PODCAST }
+
 data class DownloadJob(
     val id: String,
     val url: String,
@@ -124,6 +132,10 @@ data class DownloadJob(
     val videoId: String? = null,
     /** A small poster for the card, cached on disk once metadata is known. */
     val thumbnail: File? = null,
+    val kind: JobKind = JobKind.YOUTUBE,
+    /** Podcast jobs: which episode of which feed. */
+    val feedUrl: String? = null,
+    val episodeGuid: String? = null,
 ) {
     val label: String get() = title ?: url
 }
@@ -197,8 +209,33 @@ class DownloadRepository(private val context: Context) {
         return id
     }
 
+    /** Queues one podcast episode. Returns the existing job when it is already queued. */
+    fun enqueueEpisode(podcast: Podcast, episode: Episode): String {
+        _jobs.value.firstOrNull { it.episodeGuid == episode.guid && !it.stage.isTerminal }
+            ?.let { return it.id }
+        val id = UUID.randomUUID().toString()
+        _jobs.value += DownloadJob(
+            id = id,
+            url = episode.audioUrl,
+            format = AudioFormat.M4A,
+            title = episode.title,
+            artist = podcast.title,
+            kind = JobKind.PODCAST,
+            feedUrl = podcast.feedUrl,
+            episodeGuid = episode.guid,
+        )
+        scheduleSave()
+        queue.trySend(id)
+        DownloadService.ensureRunning(context)
+        return id
+    }
+
+    /** Coroutines of podcast downloads in flight, so cancel() can stop them. */
+    private val running = java.util.concurrent.ConcurrentHashMap<String, Job>()
+
     fun cancel(jobId: String) {
         YtDlp.cancel(jobId)
+        running[jobId]?.cancel()
         update(jobId) { it.copy(stage = JobStage.Cancelled) }
     }
 
@@ -220,6 +257,10 @@ class DownloadRepository(private val context: Context) {
     private suspend fun process(jobId: String) {
         val job = _jobs.value.firstOrNull { it.id == jobId } ?: return
         if (job.stage is JobStage.Cancelled) return
+        if (job.kind == JobKind.PODCAST) {
+            processEpisode(job)
+            return
+        }
 
         val workDir = File(context.cacheDir, "ytdlp-work/$jobId").apply { mkdirs() }
         try {
@@ -292,6 +333,77 @@ class DownloadRepository(private val context: Context) {
             }
         } finally {
             workDir.deleteRecursively()
+        }
+    }
+
+    /**
+     * A podcast episode: plain HTTP into the app's own Podcasts directory
+     * (never MediaStore, so it stays out of the music library), resumable
+     * through EpisodeDownloader's .part file.
+     */
+    private suspend fun processEpisode(job: DownloadJob) {
+        val jobId = job.id
+        val store = PodcastStore.get(context)
+        val podcast = job.feedUrl?.let { store.podcast(it) }
+        val episode = job.episodeGuid?.let { store.episode(it) }
+        if (podcast == null || episode == null) {
+            update(jobId) { it.copy(stage = JobStage.Failed("This episode is no longer in your subscriptions.")) }
+            return
+        }
+        // Poster: the episode's own image if it has one, else the show's.
+        val imageUrl = episode.imageUrl ?: podcast.imageUrl
+        if (imageUrl != null) {
+            val thumb = File(context.cacheDir, "ytdlp-thumbs/podcast-${imageUrl.hashCode()}.jpg")
+            if (!thumb.isFile) {
+                PodcastSearch.Http.bytes(imageUrl)?.let { bytes ->
+                    runCatching { thumb.parentFile?.mkdirs(); thumb.writeBytes(bytes) }
+                }
+            }
+            if (thumb.isFile) update(jobId) { it.copy(thumbnail = thumb) }
+        }
+
+        val target = store.targetFile(podcast, episode)
+        if (target.isFile && target.length() > 0) {
+            store.recordDownload(episode.guid, target)
+            update(jobId) { it.copy(stage = JobStage.Done(Uri.fromFile(target), null, alreadyImported = true)) }
+            return
+        }
+
+        update(jobId) { it.copy(stage = JobStage.Downloading(0f, 0)) }
+        val started = System.currentTimeMillis()
+        var lastPercent = -1
+        val worker = scope.launch {
+            try {
+                EpisodeDownloader.download(episode.audioUrl, target) { p ->
+                    val percent = p.percent.toInt()
+                    if (percent != lastPercent) {
+                        lastPercent = percent
+                        val elapsed = (System.currentTimeMillis() - started) / 1000.0
+                        val rate = if (elapsed > 0) p.bytes / elapsed else 0.0
+                        val eta = if (rate > 0 && p.total > 0) ((p.total - p.bytes) / rate).toLong() else 0L
+                        update(jobId) { current ->
+                            if (current.stage is JobStage.Cancelled) current
+                            else current.copy(stage = JobStage.Downloading(p.percent, eta))
+                        }
+                    }
+                }
+                store.recordDownload(episode.guid, target)
+                update(jobId) { it.copy(stage = JobStage.Done(Uri.fromFile(target), null)) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                update(jobId) { it.copy(stage = JobStage.Cancelled) }
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "episode download failed for ${episode.audioUrl}", e)
+                update(jobId) {
+                    it.copy(stage = JobStage.Failed(e.message?.let { m -> "Download failed: $m" } ?: "Download failed."))
+                }
+            }
+        }
+        running[jobId] = worker
+        try {
+            worker.join()
+        } finally {
+            running.remove(jobId)
         }
     }
 

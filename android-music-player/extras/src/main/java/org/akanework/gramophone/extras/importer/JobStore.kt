@@ -75,6 +75,9 @@ internal object JobStore {
         put("artist", job.artist)
         put("videoId", job.videoId)
         put("thumbnail", job.thumbnail?.absolutePath)
+        put("kind", job.kind.name)
+        put("feedUrl", job.feedUrl)
+        put("episodeGuid", job.episodeGuid)
         when (val s = job.stage) {
             is JobStage.Done -> {
                 put("stage", "done")
@@ -116,6 +119,9 @@ internal object JobStore {
             videoId = o.optString("videoId").takeIf { it.isNotBlank() },
             thumbnail = o.optString("thumbnail").takeIf { it.isNotBlank() }
                 ?.let(::File)?.takeIf { it.isFile },
+            kind = runCatching { JobKind.valueOf(o.optString("kind")) }.getOrDefault(JobKind.YOUTUBE),
+            feedUrl = o.optString("feedUrl").takeIf { it.isNotBlank() },
+            episodeGuid = o.optString("episodeGuid").takeIf { it.isNotBlank() },
         )
     }
 }

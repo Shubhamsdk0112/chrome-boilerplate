@@ -197,6 +197,13 @@ def main(root: Path) -> int:
         android:title="@string/ytdlp_settings_title" />
 
     <Preference
+        android:icon="@drawable/ic_extras_podcast"
+        android:key="podcasts"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/podcast_settings_summary"
+        android:title="@string/podcast_settings_title" />
+
+    <Preference
         android:icon="@drawable/ic_extras_filter"
         android:key="libraryFilter"
         android:layout="@layout/preference_basic"
@@ -207,6 +214,24 @@ def main(root: Path) -> int:
         android:icon="@drawable/ic_info"
         android:key="about\"""",
         marker='android:key="downloader"',
+    ))
+
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_top.xml",
+        anchor="""    <Preference
+        android:icon="@drawable/ic_extras_filter"
+        android:key="libraryFilter\"""",
+        replacement="""    <Preference
+        android:icon="@drawable/ic_extras_podcast"
+        android:key="podcasts"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/podcast_settings_summary"
+        android:title="@string/podcast_settings_title" />
+
+    <Preference
+        android:icon="@drawable/ic_extras_filter"
+        android:key="libraryFilter\"""",
+        marker='android:key="podcasts"',
     ))
 
     fragment = (
@@ -230,6 +255,29 @@ def main(root: Path) -> int:
                 startActivity(FilterActivity::class.java)
             }""",
         marker='"downloader" ->',
+    ))
+    steps.append(patch(
+        fragment,
+        anchor="""            "libraryFilter" -> {
+                startActivity(FilterActivity::class.java)
+            }""",
+        replacement="""            "libraryFilter" -> {
+                startActivity(FilterActivity::class.java)
+            }
+
+            "podcasts" -> {
+                startActivity(PodcastsActivity::class.java)
+            }""",
+        marker='"podcasts" ->',
+    ))
+    steps.append(patch(
+        fragment,
+        anchor="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
+        replacement=(
+            "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity\n"
+            "import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity"
+        ),
+        marker="import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity",
     ))
     steps.append(patch(
         fragment,
@@ -303,6 +351,52 @@ def main(root: Path) -> int:
             "import org.akanework.gramophone.ui.fragments.settings.MainSettingsActivity"
         ),
         marker="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
+    ))
+    # With two more icons beside it, "ifRoom" demotes search to the overflow
+    # on a phone. Search is the most used action on that bar; pin it.
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "menu" / "home_menu.xml",
+        anchor="""        android:title="@string/home_menu_search"
+        app:showAsAction="ifRoom" />""",
+        replacement="""        android:title="@string/home_menu_search"
+        app:showAsAction="always" />""",
+        marker='home_menu_search"\n        app:showAsAction="always"',
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "menu" / "home_menu.xml",
+        anchor="""    <item
+        android:id="@+id/shuffle\"""",
+        replacement="""    <item
+        android:id="@+id/podcasts"
+        android:icon="@drawable/ic_extras_podcast"
+        android:title="@string/podcast_settings_title"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/shuffle\"""",
+        marker='android:id="@+id/podcasts"',
+    ))
+    steps.append(patch(
+        pager,
+        anchor="""                R.id.download -> {
+                    activity.startActivity(Intent(activity, DownloaderActivity::class.java))
+                }""",
+        replacement="""                R.id.download -> {
+                    activity.startActivity(Intent(activity, DownloaderActivity::class.java))
+                }
+
+                R.id.podcasts -> {
+                    activity.startActivity(Intent(activity, PodcastsActivity::class.java))
+                }""",
+        marker="R.id.podcasts ->",
+    ))
+    steps.append(patch(
+        pager,
+        anchor="import org.akanework.gramophone.extras.importer.ui.DownloaderActivity",
+        replacement=(
+            "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity\n"
+            "import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity"
+        ),
+        marker="import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity",
     ))
 
     # ------------------------------------------------------------------

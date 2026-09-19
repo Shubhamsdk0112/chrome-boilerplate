@@ -61,10 +61,10 @@ private fun ColorScheme.pureBlack(): ColorScheme = copy(
     surface = Color.Black,
     surfaceDim = Color.Black,
     surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color(0xFF0E0F13),
-    surfaceContainer = Color(0xFF14151A),
-    surfaceContainerHigh = Color(0xFF1B1C22),
-    surfaceContainerHighest = Color(0xFF25272E),
+    surfaceContainerLow = Color(0xFF0D0D0D),
+    surfaceContainer = Color(0xFF141414),
+    surfaceContainerHigh = Color(0xFF1C1C1C),
+    surfaceContainerHighest = Color(0xFF262626),
 )
 
 /**

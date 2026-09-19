@@ -17,6 +17,7 @@
 
 package org.akanework.gramophone.extras.filter.ui
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,7 +30,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -120,7 +125,16 @@ private fun FilterScreen() {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.filter_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.filter_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { (context as? Activity)?.finish() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+            )
+        },
     ) { insets ->
         LazyColumn(
             modifier = Modifier

@@ -43,6 +43,29 @@
     <string name="ytdlp_settings_title">Add from YouTube</string>
     <string name="ytdlp_settings_summary">Download songs with yt-dlp and add them to your library</string>
 
+    <!-- ============ Podcasts ============ -->
+    <string name="podcast_title">Podcasts</string>
+    <string name="podcast_search_hint">Search shows, or paste an RSS link</string>
+    <string name="podcast_results">Results</string>
+    <string name="podcast_following">Following</string>
+    <string name="podcast_follow">Follow</string>
+    <string name="podcast_unfollow">Unfollow</string>
+    <string name="podcast_followed">Following %1$s</string>
+    <string name="podcast_feed_failed">Could not load that feed</string>
+    <string name="podcast_no_results">No shows found</string>
+    <string name="podcast_refresh">Refresh</string>
+    <string name="podcast_refresh_failed">%1$d feed(s) could not be refreshed</string>
+    <string name="podcast_empty">Search for a show above, or paste the RSS link of any podcast.\n\nEpisodes can be streamed straight away or downloaded to listen offline. Your place in each episode is remembered.</string>
+    <string name="podcast_episode_count">%1$d episodes</string>
+    <string name="podcast_play">Play</string>
+    <string name="podcast_resume">Resume</string>
+    <string name="podcast_download">Download</string>
+    <string name="podcast_downloaded">Downloaded</string>
+    <string name="podcast_delete_download">Delete download</string>
+    <string name="podcast_minutes_left">%1$d min left</string>
+    <string name="podcast_settings_title">Podcasts</string>
+    <string name="podcast_settings_summary">Follow shows, download episodes, pick up where you left off</string>
+
     <!-- ============ Library filter ============ -->
     <string name="filter_title">Filter library</string>
     <string name="filter_explainer">Hides things that are not music — WhatsApp voice notes, call recordings, ringtones, video files — so your library only shows songs.\n\nNothing is ever deleted. Hidden files stay on your phone and you can put any of them back.</string>

@@ -5,8 +5,21 @@
 #   2. copies the :extras module in and wires it up
 #   3. leaves you with a tree you can build or open in Android Studio
 #
-# Requires: git, python3, JDK 21, and the Android SDK (ANDROID_HOME) with NDK.
+# Requires: git, Python 3, JDK 21, and the Android SDK (ANDROID_HOME) with NDK.
+#
+# On Windows, run this from Git Bash (ships with Git for Windows) or WSL, then
+# build with gradlew.bat.
 set -euo pipefail
+
+# Windows installs Python as `python`, most other places as `python3`.
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON=python3
+elif command -v python >/dev/null 2>&1; then
+    PYTHON=python
+else
+    echo "error: Python 3 is required but was not found on PATH" >&2
+    exit 1
+fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECKOUT="${1:-$HERE/build/Gramophone}"
@@ -33,7 +46,7 @@ echo "==> Fetching submodules (this pulls a patched Media3, expect a few hundred
 git -C "$CHECKOUT" submodule update --init --recursive
 
 echo "==> Applying the :extras integration"
-python3 "$HERE/integrate/integrate.py" "$CHECKOUT"
+"$PYTHON" "$HERE/integrate/integrate.py" "$CHECKOUT"
 
 # The app module reads this for its version suffix; upstream gitignores it.
 if [ ! -f "$CHECKOUT/package.properties" ]; then
@@ -45,7 +58,7 @@ cat <<NEXT
 Ready.
 
   cd $CHECKOUT
-  ./gradlew :extras:testDebugUnitTest    # unit tests
+  ./gradlew :extras:testDebugUnitTest    # unit tests   (Windows: gradlew.bat)
   ./gradlew :app:assembleDebug           # per-ABI debug APKs
 
 APKs land in app/build/outputs/apk/debug/. Install the arm64-v8a one:

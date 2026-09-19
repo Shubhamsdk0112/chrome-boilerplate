@@ -63,6 +63,12 @@ emulator:
   (voice note, 12-min audiobook); the Filter screen shows that result.
 - `./verify.sh`: 115 unit tests pass, on Windows too.
 - Release APKs (R8, signed) smoke-tested on the emulator before each tag.
+- v0.2.1 (phone-reported bugs): Back inside Folders/Filesystem goes up a
+  folder (`DetailedFolderAdapter` back callback, defers to the player sheet
+  and the fragment back stack); next/previous always advertised and wrap
+  around at the queue ends (`EndedWorkaroundPlayer.getState` +
+  `onPlayerCommandRequest`); `extras/player/FocusResumer` resumes after
+  another app's audio stops (Behaviour setting, default on).
 
 ## Build
 
@@ -118,7 +124,7 @@ release build before shipping it.
 
 Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py <tag>`
 (uses the stored git credential; notes come from `C:\Users\shubh\dev\release-notes.md`).
-Tags so far: `extras-v0.1.0`, `extras-v0.2.0`. The PR from the working branch
+Tags so far: `extras-v0.1.0`, `extras-v0.2.0`, `extras-v0.2.1`. The PR from the working branch
 to `main` is opened with `C:\Users\shubh\dev\open_pr.py` (same credential).
 
 ## Verify without the SDK

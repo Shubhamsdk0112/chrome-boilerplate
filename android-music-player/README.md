@@ -263,7 +263,7 @@ Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Verifying without the Android SDK
 
-`./verify.sh` compiles the module and runs all 85 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 92 unit tests using only Maven
 Central — a real `android.jar` (Robolectric publishes full framework jars), the
 actual youtubedl-android classes from its published `.aar`, and two tiny local
 stubs for the androidx symbols, since androidx is published only on Google's
@@ -307,7 +307,7 @@ extras/                    the new Gradle module
       LibraryScanner.kt    MediaStore query and orchestration
       FilterWatcher.kt     opt-in re-scan when new audio appears
       ui/FilterActivity.kt Compose settings + review screen
-  src/test/java/.../       85 unit tests
+  src/test/java/.../       92 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```

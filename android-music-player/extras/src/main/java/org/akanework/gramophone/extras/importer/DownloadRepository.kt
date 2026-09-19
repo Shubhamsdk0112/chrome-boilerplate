@@ -194,9 +194,7 @@ class DownloadRepository(private val context: Context) {
             }
             if (currentStage(jobId) is JobStage.Cancelled) return
 
-            val audio = workDir.listFiles()
-                ?.filter { it.isFile && it.length() > 0 }
-                ?.maxByOrNull { it.length() }
+            val audio = pickOutput(workDir.listFiles()?.toList().orEmpty(), job.format.extension)
                 ?: throw YtDlpFailure("yt-dlp reported success but produced no file")
 
             // --- artwork --------------------------------------------------
@@ -266,6 +264,25 @@ class DownloadRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "DownloadRepository"
+
+        /**
+         * Picks the audio file yt-dlp produced.
+         *
+         * Taking simply the largest file was wrong: when the format selector falls
+         * back to `best`, yt-dlp downloads a full video and extracts the audio from
+         * it, and for a moment the video is both present and much larger. Matching
+         * the extension we asked for avoids importing a video file. Partial
+         * downloads are excluded outright — a `.part` left behind means the
+         * transfer did not finish, and importing it would produce a truncated song.
+         */
+        internal fun pickOutput(files: List<File>, expectedExtension: String): File? {
+            val usable = files.filter {
+                it.isFile && it.length() > 0 &&
+                    !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
+            }
+            return usable.firstOrNull { it.extension.equals(expectedExtension, ignoreCase = true) }
+                ?: usable.maxByOrNull { it.length() }
+        }
 
         @Volatile
         private var instance: DownloadRepository? = null

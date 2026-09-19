@@ -87,6 +87,25 @@ is idempotent about the patches), then build.
 - A Play Store emulator image fills its 6 GB data partition with Google app
   updates; the APK needs ~350 MB free to install.
 
+## Release builds
+
+```bash
+cd build/Gramophone
+./gradlew :app:assembleRelease -PAKANE_RELEASE_STORE_FILE=... -PAKANE_RELEASE_STORE_PASSWORD=... \
+    -PAKANE_RELEASE_KEY_ALIAS=... -PAKANE_RELEASE_KEY_PASSWORD=...
+```
+
+Upstream reads the signing config from those Gradle properties. The test
+key lives outside the repo at `C:\Users\shubh\dev\keys\gramophone-release.jks`
+with its properties file next to it; never commit either. R8 is on for
+release, and `extras/consumer-rules.pro` keeps youtubedl-android, Jackson
+and commons-compress — without the last one the very first download dies
+in commons-compress's static initialiser. Always run one download on a
+release build before shipping it.
+
+Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py`
+(uses the stored git credential; first one is `extras-v0.1.0`).
+
 ## Verify without the SDK
 
 `./verify.sh` compiles the module and runs all 112 unit tests using only Maven
@@ -137,6 +156,12 @@ Gradle build — it cannot type-check Compose.
   unit-tested; on the emulator episodes finish before a kill lands).
 
 ## Known follow-ups
+
+- The AI pass has still not been exercised live (needs an OpenRouter key
+  in-app). Default model was updated to one that exists
+  (`google/gemini-2.5-flash-lite`); ids churn, check /api/v1/models.
+- ListeningHistory keeps a MediaController bound from Application.onCreate,
+  which keeps the playback service alive while the app process lives.
 
 - Playback speed and skip-silence for podcasts (Gramophone has a speed
   control in the player; nothing podcast-specific yet).

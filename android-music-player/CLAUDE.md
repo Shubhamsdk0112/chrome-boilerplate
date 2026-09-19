@@ -7,16 +7,24 @@ immediately instead of re-deriving the state.
 
 A fork of [Gramophone](https://github.com/AkaneTan/Gramophone) (native Android,
 Kotlin, Material 3, MediaStore-backed) plus one new Gradle module, `:extras`,
-holding two features:
+holding three features:
 
 - **importer** — paste or share a YouTube link, yt-dlp downloads the audio,
-  finds real album art, tags it, publishes it to MediaStore.
+  finds real album art, tags it, publishes it to MediaStore. One tap from the
+  library toolbar. Queue survives process death.
+- **podcasts** — find a show by name (Apple directory) or feed URL, follow
+  it, stream or download episodes (resumable), play through Gramophone's own
+  player, pick up where you left off. Episode files live under the app's
+  external files dir so they never appear as songs.
 - **filter** — hides non-music (WhatsApp voice notes, recordings, ringtones,
   video files) using local rules plus an optional OpenRouter pass for whatever
   the rules cannot place.
 
+Plus a curated palette (Spotify-style black + green, `integrate/palette.py`)
+applied to upstream's resources and to the Compose screens alike.
+
 Upstream is **not vendored**. `setup.sh` clones it at a pinned commit and
-`integrate/integrate.py` applies 11 anchored patches.
+`integrate/integrate.py` applies ~20 anchored patches.
 
 ## State (2026-09-19)
 
@@ -36,7 +44,12 @@ emulator:
   hidden with reasons, written to `junkFilterPaths`, and Gramophone's library
   drops them (the blacklist-union patch works). Tagged real songs survive.
 - "Update yt-dlp" in the menu works (moved 2025.11.12 → 2026.08.19).
-- `./verify.sh`: 102 unit tests pass, on Windows too.
+- Podcasts end to end: follow by feed URL, download (progress inline, kill
+  + relaunch resumes), play a downloaded and a streamed episode through the
+  session (dumpsys shows our item), position persisted.
+- Process death: a queued song or episode is re-run on the next launch of
+  any screen ("resuming N interrupted job(s)" in logcat).
+- `./verify.sh`: 112 unit tests pass, on Windows too.
 
 ## Build
 
@@ -54,6 +67,9 @@ Install the APK matching the target — **arm64-v8a** for a phone, **x86_64** fo
 an emulator. The wrong one installs fine but leaves the app with no CPython or
 ffmpeg to execute, and every download fails at startup. The debug package id is
 `org.akanework.gramophone.debug`.
+
+Palette: edit `integrate/palette.py`, then `python integrate/palette.py
+--kotlin` (regenerates `extras/.../ui/Palette.kt`) and re-run integrate.
 
 After editing anything under `extras/`, re-run
 `python integrate/integrate.py build/Gramophone` (it re-copies the module and
@@ -73,7 +89,7 @@ is idempotent about the patches), then build.
 
 ## Verify without the SDK
 
-`./verify.sh` compiles the module and runs all 102 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 112 unit tests using only Maven
 Central (a Robolectric `android.jar`, the real youtubedl-android classes, and
 two small androidx stubs). Useful in CI or a sandbox. **Not** a substitute for a
 Gradle build — it cannot type-check Compose.
@@ -97,8 +113,15 @@ Gradle build — it cannot type-check Compose.
 - The bundled yt-dlp is as old as the APK. When a download fails the way a
   stale extractor fails (`DownloadError.needsUpdate`), the repository updates
   yt-dlp once and retries before showing an error.
-- Nothing in `:extras` may touch SharedPreferences or the network on the main
-  thread — see StrictMode above. `FilterWatcher.ensureStarted` runs on IO.
+- Nothing in `:extras` may touch SharedPreferences, files or the network on
+  the main thread — see StrictMode above. Even `context.filesDir` counts
+  (PodcastStore keeps it lazy), and starting an activity with a content://
+  URI does too (the downloader does it from IO). The StrictMode dialog blocks
+  the main thread, which then shows up as an ANR.
+- Gramophone's image loader has no network fetcher. Remote covers go through
+  `ImageCache` to disk first; the player is handed a file:// artwork URI.
+- The playback service passes URI-bearing MediaItems straight through, which
+  is how episodes play; mediaIds are strings (`podcast:<guid>`).
 - The filter hides files by writing absolute paths into the `junkFilterPaths`
   preference, which a patch unions into Gramophone's blacklist. `Reader` walks
   each file's own path before its parents, which is why per-file entries work.
@@ -114,6 +137,10 @@ Gradle build — it cannot type-check Compose.
   update was exercised on the emulator).
 
 ## Known follow-ups
+
+- Playback speed and skip-silence for podcasts (Gramophone has a speed
+  control in the player; nothing podcast-specific yet).
+- Auto-download new episodes / refresh feeds in the background.
 
 - Importing the same video twice creates a second file; a video-id check
   against the library would avoid that.

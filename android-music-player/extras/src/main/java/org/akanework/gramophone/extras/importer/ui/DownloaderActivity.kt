@@ -102,17 +102,28 @@ class DownloaderActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Only a fresh launch carries a share to act on. After a rotation the
+        // activity is recreated with saved state and the same intent, and the
+        // song must not be queued a second time.
+        val initial = if (savedInstanceState == null) {
+            extractUrl(intent)?.let(::ShareRequest)
+        } else {
+            null
+        }
         setContent {
-            // Held as state so that a second share, which arrives through
-            // onNewIntent rather than a fresh activity, still reaches the UI.
-            var shared by remember { mutableStateOf(extractUrl(intent)) }
+            // A second share arrives through onNewIntent rather than a fresh
+            // activity. Each delivery is a new ShareRequest, even for a link
+            // shared before: re-sharing a failed one is how you retry it.
+            var share by remember { mutableStateOf(initial) }
             DisposableEffect(Unit) {
-                val listener = Consumer<Intent> { shared = extractUrl(it) }
+                val listener = Consumer<Intent> { intent ->
+                    extractUrl(intent)?.let { share = ShareRequest(it) }
+                }
                 addOnNewIntentListener(listener)
                 onDispose { removeOnNewIntentListener(listener) }
             }
             ImporterTheme {
-                DownloaderScreen(sharedUrl = shared)
+                DownloaderScreen(share = share, onShareHandled = { share = null })
             }
         }
     }
@@ -127,6 +138,12 @@ class DownloaderActivity : ComponentActivity() {
         return Regex("""https?://\S+""").find(text)?.value
     }
 }
+
+/**
+ * One delivery of a shared link. Deliberately not a data class: two shares of
+ * the same URL are two requests, and identity is what tells them apart.
+ */
+private class ShareRequest(val url: String)
 
 @Composable
 private fun ImporterTheme(content: @Composable () -> Unit) {
@@ -143,7 +160,7 @@ private fun ImporterTheme(content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DownloaderScreen(sharedUrl: String?) {
+private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { DownloadRepository.get(context) }
     val jobs by repository.jobs.collectAsStateWithLifecycle()
@@ -168,15 +185,13 @@ private fun DownloaderScreen(sharedUrl: String?) {
         url = ""
     }
 
-    // A link arriving via Share should not need a second tap — but it must be
-    // enqueued exactly once. The activity is recreated on rotation, so without
-    // remembering that we already handled this URL a rotation would queue the
-    // same song a second time.
-    var autoSubmitted by rememberSaveable { mutableStateOf<String?>(null) }
-    LaunchedEffect(sharedUrl) {
-        if (!sharedUrl.isNullOrBlank() && autoSubmitted != sharedUrl) {
-            autoSubmitted = sharedUrl
-            submit(sharedUrl)
+    // A link arriving via Share should not need a second tap. The activity
+    // hands over one ShareRequest per delivery and none after a rotation, so
+    // acting on every request queues each share exactly once.
+    LaunchedEffect(share) {
+        if (share != null) {
+            submit(share.url)
+            onShareHandled()
         }
     }
 
@@ -355,6 +370,7 @@ private fun JobCard(job: DownloadJob, onCancel: () -> Unit) {
 private fun JobStage.labelRes(): Int = when (this) {
     is JobStage.Queued -> R.string.ytdlp_queued
     is JobStage.Reading -> R.string.ytdlp_reading
+    is JobStage.Updating -> R.string.ytdlp_updating
     is JobStage.FindingArtwork -> R.string.ytdlp_finding_artwork
     is JobStage.Tagging -> R.string.ytdlp_tagging
     is JobStage.Importing -> R.string.ytdlp_importing

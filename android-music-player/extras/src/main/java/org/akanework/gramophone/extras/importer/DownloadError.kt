@@ -53,6 +53,16 @@ object DownloadError {
             "yt-dlp could not read YouTube's player. This is what happens when " +
                 "YouTube changes it — tap Update yt-dlp from the menu and try again.",
         ),
+        // Seen on a device with the bundled (ten-month-old) yt-dlp: YouTube
+        // stopped handing that client direct audio URLs, the download wrote
+        // nothing, and the only ERROR lines were about renaming a missing
+        // .part file. The warning above them is the real story.
+        Rule(
+            listOf("forcing sabr", "sabr streaming", "formats have been skipped",
+                "older than 90 days"),
+            "This yt-dlp is too old for YouTube. Tap Update yt-dlp from the menu " +
+                "and try again.",
+        ),
         Rule(
             listOf("private video", "video is private"),
             "That video is private.",
@@ -93,6 +103,22 @@ object DownloadError {
             listOf("is not a valid url", "unsupported url"),
             "That does not look like a link yt-dlp can handle.",
         ),
+    )
+
+    /**
+     * Whether [stderr] describes the extractor falling behind YouTube — the
+     * failures an update of yt-dlp itself is the fix for. Used to update and
+     * retry automatically before bothering the user with the message.
+     */
+    fun needsUpdate(stderr: String?): Boolean {
+        val haystack = stderr?.lowercase().orEmpty()
+        return UPDATE_NEEDLES.any { haystack.contains(it) }
+    }
+
+    private val UPDATE_NEEDLES = listOf(
+        "nsig extraction failed", "unable to extract", "player response",
+        "signature extraction failed", "forcing sabr", "sabr streaming",
+        "formats have been skipped", "older than 90 days", "http error 403",
     )
 
     /**

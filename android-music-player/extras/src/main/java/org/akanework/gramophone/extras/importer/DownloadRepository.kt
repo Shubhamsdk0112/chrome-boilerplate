@@ -21,6 +21,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +93,8 @@ enum class AudioFormat(
 sealed interface JobStage {
     data object Queued : JobStage
     data object Reading : JobStage
+    /** yt-dlp was too old for YouTube and is being replaced before a retry. */
+    data object Updating : JobStage
     data class Downloading(val progress: Float, val etaSeconds: Long) : JobStage
     data object FindingArtwork : JobStage
     data object Tagging : JobStage
@@ -140,8 +143,14 @@ class DownloadRepository(private val context: Context) {
     }
 
     fun enqueue(url: String, format: AudioFormat): String {
+        val trimmed = url.trim()
+        // A link that is already in flight (a double tap on Share, or the
+        // YouTube app resending it) must not queue the song twice. A finished
+        // or failed job is different: sharing it again is how you retry.
+        _jobs.value.firstOrNull { it.url == trimmed && !it.stage.isTerminal }
+            ?.let { return it.id }
         val id = UUID.randomUUID().toString()
-        _jobs.value += DownloadJob(id = id, url = url.trim(), format = format)
+        _jobs.value += DownloadJob(id = id, url = trimmed, format = format)
         queue.trySend(id)
         return id
     }
@@ -166,48 +175,31 @@ class DownloadRepository(private val context: Context) {
             update(jobId) { it.copy(stage = JobStage.Reading) }
             YtDlp.ensureInitialized(context)
 
-            val meta = MetadataProbe.probe(job.url)
-            update(jobId) {
-                it.copy(title = meta.title, artist = meta.artist)
-            }
-
-            // --- download -------------------------------------------------
-            update(jobId) { it.copy(stage = JobStage.Downloading(0f, 0)) }
-            val request = YoutubeDLRequest(job.url)
-                .addOption("--no-playlist")
-                .addOption("--ignore-config")
-                .addOption("--no-mtime")
-                .addOption("--newline")
-                .addOption("-f", job.format.selector)
-                .addOption("-x")
-                .addOption("--audio-format", job.format.id)
-                .addOption("--audio-quality", "0")
-                // yt-dlp writes its own tags with its own ffmpeg here. If our
-                // artwork pass later fails, the file still arrives tagged.
-                .addOption("--embed-metadata")
-                .addOption("-o", File(workDir, "%(id)s.%(ext)s").absolutePath)
-
-            var lastPublishedPercent = -1
-            val response = YoutubeDL.getInstance().execute(request, jobId) { progress, eta, _ ->
-                val clamped = progress.coerceIn(0f, 100f)
-                // yt-dlp reports far more often than anything downstream can
-                // use, and every emission re-renders the list and the
-                // notification. Whole percent steps are plenty.
-                if (clamped.toInt() != lastPublishedPercent) {
-                    lastPublishedPercent = clamped.toInt()
-                    update(jobId) { current ->
-                        if (current.stage is JobStage.Cancelled) current
-                        else current.copy(stage = JobStage.Downloading(clamped, eta))
-                    }
+            // The bundled yt-dlp is as old as the APK, and YouTube changes
+            // underneath it every few months. When the failure is that kind of
+            // failure, update once and go again before showing anyone an error;
+            // most of the time that is the whole fix.
+            val (meta, audio) = try {
+                fetch(job, workDir)
+            } catch (e: Exception) {
+                val stderr = when (e) {
+                    is YoutubeDLException -> e.message
+                    is YtDlpFailure -> e.stderr
+                    else -> null
                 }
-            }
-            if (response.exitCode != 0) {
-                throw YtDlpFailure(DownloadError.humanize(response.err))
+                if (!DownloadError.needsUpdate(stderr)) throw e
+                Log.i(TAG, "yt-dlp looks stale, updating before retrying ${job.url}")
+                update(jobId) { it.copy(stage = JobStage.Updating) }
+                val status = runCatching { YtDlp.update(context) }
+                    .onFailure { Log.w(TAG, "yt-dlp update failed", it) }
+                    .getOrNull()
+                if (status != YoutubeDL.UpdateStatus.DONE) throw e
+                if (currentStage(jobId) is JobStage.Cancelled) return
+                workDir.listFiles()?.forEach { it.delete() }
+                update(jobId) { it.copy(stage = JobStage.Reading) }
+                fetch(job, workDir)
             }
             if (currentStage(jobId) is JobStage.Cancelled) return
-
-            val audio = pickOutput(workDir.listFiles()?.toList().orEmpty(), job.format.extension)
-                ?: throw YtDlpFailure("yt-dlp reported success but produced no file")
 
             // --- artwork --------------------------------------------------
             update(jobId) { it.copy(stage = JobStage.FindingArtwork) }
@@ -235,6 +227,12 @@ class DownloadRepository(private val context: Context) {
             update(jobId) { it.copy(stage = JobStage.Done(uri, artwork?.source)) }
         } catch (e: YoutubeDL.CanceledException) {
             update(jobId) { it.copy(stage = JobStage.Cancelled) }
+        } catch (e: YoutubeDLException) {
+            // youtubedl-android throws on a non-zero exit rather than returning
+            // it, with yt-dlp's whole stderr as the message. Seen on a device:
+            // without this branch the card shows a Python traceback.
+            Log.e(TAG, "import failed for ${job.url}", e)
+            update(jobId) { it.copy(stage = JobStage.Failed(DownloadError.humanize(e.message))) }
         } catch (e: Exception) {
             Log.e(TAG, "import failed for ${job.url}", e)
             update(jobId) {
@@ -243,6 +241,56 @@ class DownloadRepository(private val context: Context) {
         } finally {
             workDir.deleteRecursively()
         }
+    }
+
+    /**
+     * The yt-dlp half of a job: read the tags, then download the audio into
+     * [workDir]. Everything after this (artwork, tagging, publishing) is ours
+     * and does not depend on YouTube cooperating.
+     */
+    private suspend fun fetch(job: DownloadJob, workDir: File): Pair<TrackMetadata, File> {
+        val jobId = job.id
+        val meta = MetadataProbe.probe(job.url)
+        update(jobId) {
+            it.copy(title = meta.title, artist = meta.artist)
+        }
+
+        update(jobId) { it.copy(stage = JobStage.Downloading(0f, 0)) }
+        val request = YoutubeDLRequest(job.url)
+            .addOption("--no-playlist")
+            .addOption("--ignore-config")
+            .addOption("--no-mtime")
+            .addOption("--newline")
+            .addOption("-f", job.format.selector)
+            .addOption("-x")
+            .addOption("--audio-format", job.format.id)
+            .addOption("--audio-quality", "0")
+            // yt-dlp writes its own tags with its own ffmpeg here. If our
+            // artwork pass later fails, the file still arrives tagged.
+            .addOption("--embed-metadata")
+            .addOption("-o", File(workDir, "%(id)s.%(ext)s").absolutePath)
+
+        var lastPublishedPercent = -1
+        val response = YoutubeDL.getInstance().execute(request, jobId) { progress, eta, _ ->
+            val clamped = progress.coerceIn(0f, 100f)
+            // yt-dlp reports far more often than anything downstream can
+            // use, and every emission re-renders the list and the
+            // notification. Whole percent steps are plenty.
+            if (clamped.toInt() != lastPublishedPercent) {
+                lastPublishedPercent = clamped.toInt()
+                update(jobId) { current ->
+                    if (current.stage is JobStage.Cancelled) current
+                    else current.copy(stage = JobStage.Downloading(clamped, eta))
+                }
+            }
+        }
+        if (response.exitCode != 0) {
+            throw YtDlpFailure(DownloadError.humanize(response.err))
+        }
+
+        val audio = pickOutput(workDir.listFiles()?.toList().orEmpty(), job.format.extension)
+            ?: throw YtDlpFailure("yt-dlp reported success but produced no file")
+        return meta to audio
     }
 
     /** `Artist - Title.m4a`, sanitised for FAT-style filesystems. */

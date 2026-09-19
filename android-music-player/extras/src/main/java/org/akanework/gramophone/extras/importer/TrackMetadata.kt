@@ -18,6 +18,7 @@
 package org.akanework.gramophone.extras.importer
 
 import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -77,7 +78,15 @@ object MetadataProbe {
             .addOption("--ignore-config")
             .addOption("--print", PRINT_TEMPLATE)
 
-        val response = YoutubeDL.getInstance().execute(request)
+        // youtubedl-android throws on a non-zero exit with stderr as the
+        // message; the exitCode check below is kept for the version that
+        // returns instead.
+        val response = try {
+            YoutubeDL.getInstance().execute(request)
+        } catch (e: YoutubeDLException) {
+            throw YtDlpFailure(DownloadError.humanize(e.message,
+                fallback = "Could not read video information"), e)
+        }
         if (response.exitCode != 0) {
             throw YtDlpFailure(DownloadError.humanize(response.err,
                 fallback = "Could not read video information"))
@@ -197,4 +206,7 @@ object MetadataProbe {
  * The message is always already user-facing — callers run stderr through
  * [DownloadError.humanize] first — so the UI can show it verbatim.
  */
-class YtDlpFailure(message: String) : Exception(message)
+class YtDlpFailure(message: String, cause: Throwable? = null) : Exception(message, cause) {
+    /** yt-dlp's raw stderr, when this wraps a [YoutubeDLException]. */
+    val stderr: String? get() = (cause as? YoutubeDLException)?.message
+}

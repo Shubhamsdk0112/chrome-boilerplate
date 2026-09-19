@@ -87,6 +87,7 @@ class DownloadService : Service() {
         val suffix = if (queued > 1) " (+${queued - 1} queued)" else ""
         val stage = when (val s = job.stage) {
             is JobStage.Reading -> getString(R.string.ytdlp_reading)
+            is JobStage.Updating -> getString(R.string.ytdlp_updating)
             is JobStage.Downloading -> "${s.progress.toInt()}%"
             is JobStage.FindingArtwork -> getString(R.string.ytdlp_finding_artwork)
             is JobStage.Tagging -> getString(R.string.ytdlp_tagging)

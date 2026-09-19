@@ -118,6 +118,32 @@ class JunkHeuristicsTest {
     }
 
     @Test
+    fun `oem recorder folders are junk`() {
+        // These are the real gap: Gramophone's folder defaults cover standard
+        // Android directories, not vendor-specific recorder folders.
+        val paths = listOf(
+            "/storage/emulated/0/MIUI/sound_recorder/2024.m4a",
+            "/storage/emulated/0/MIUI/sound_recorder/call_rec/mum.mp3",
+            "/storage/emulated/0/Sounds/voice_record/001.m4a",
+            "/storage/emulated/0/Easy Voice Recorder/note.m4a",
+        )
+        for (p in paths) {
+            assertEquals("should be junk: $p", Judgement.JUNK, judge(candidate(p)))
+        }
+    }
+
+    @Test
+    fun `the legacy whatsapp path is covered`() {
+        // Modern installs live under Android/media, which upstream already
+        // blacklists. Pre-scoped-storage installs and restored backups keep
+        // this top-level path, which upstream does not cover.
+        assertEquals(
+            Judgement.JUNK,
+            judge(candidate("/storage/emulated/0/WhatsApp/Media/WhatsApp Audio/AUD-20240102-WA0007.opus")),
+        )
+    }
+
+    @Test
     fun `speech codecs are junk`() {
         assertEquals(Judgement.JUNK, judge(candidate("/storage/emulated/0/Music/whatever.amr")))
         assertEquals(Judgement.JUNK, judge(candidate("/storage/emulated/0/Music/whatever.3gp")))
@@ -168,6 +194,57 @@ class JunkHeuristicsTest {
             Judgement.JUNK,
             judge(candidate("/storage/emulated/0/Music/interview.m4a", isRecording = true)),
         )
+    }
+
+    @Test
+    fun `screen and meeting recordings are junk`() {
+        val names = listOf(
+            "Screen_Recording_20240102.m4a", "screenrec-0001.mp3",
+            "zoom_0.m4a", "GMT20240102-120000_Recording.m4a", "audio_only.m4a",
+        )
+        for (n in names) {
+            assertEquals(
+                "should be junk: $n",
+                Judgement.JUNK,
+                judge(candidate("/storage/emulated/0/Movies/$n")),
+            )
+        }
+    }
+
+    @Test
+    fun `camera style names are junk`() {
+        for (n in listOf("VID_20240102_120000.mp3", "IMG_20240102_120000.m4a")) {
+            assertEquals(
+                "should be junk: $n",
+                Judgement.JUNK,
+                judge(candidate("/storage/emulated/0/Music/$n")),
+            )
+        }
+    }
+
+    @Test
+    fun `a file with no name at all is junk`() {
+        // "some doesn't even have names" - just an extension, or nothing.
+        assertEquals(Judgement.JUNK, judge(candidate("/storage/emulated/0/Music/.mp3")))
+    }
+
+    @Test
+    fun `another apps storage counts against a file`() {
+        // Weighted, not decisive: paired with no tags it should tip to junk.
+        val c = candidate(
+            "/storage/emulated/0/Android/media/com.someapp/cache/clip.mp3",
+            durationMs = 45_000,
+            sizeBytes = 360_000,
+        )
+        assertEquals(Judgement.JUNK, judge(c))
+
+        // But a properly tagged album stored there still survives.
+        val tagged = candidate(
+            "/storage/emulated/0/Android/media/com.someplayer/Music/track.mp3",
+            artist = "Daft Punk",
+            album = "Random Access Memories",
+        )
+        assertTrue(judge(tagged) != Judgement.JUNK)
     }
 
     // ---------------------------------------------------------------

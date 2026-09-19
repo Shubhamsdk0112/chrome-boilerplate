@@ -108,12 +108,39 @@ still get a correctly tagged song, just without the nicer cover.
 
 **Settings → Filter library.**
 
-The problem it solves: a phone accumulates thousands of audio files that are not
-music. WhatsApp voice notes named `AUD-20240102-WA0007.opus`, call recordings,
-ringtones, notification blips, video files. A MediaStore-backed player shows all
-of it, and the library becomes unusable.
+The problem: a phone accumulates thousands of audio files that are not music.
+WhatsApp voice notes named `AUD-20240102-WA0007.opus`, call recordings,
+notification blips, stray video files. A MediaStore-backed player shows all of
+it and the library becomes unusable.
 
-It runs in two stages, and the second one usually barely runs at all.
+### What Gramophone already does, before any of this
+
+Worth being straight about, because it changes what this filter is actually for.
+Out of the box Gramophone already excludes `Ringtones/`, `Notifications/`,
+`Alarms/`, `Podcasts/`, `Audiobooks/`, `Recordings/` (Android 12+) and
+`Android/media` — which covers **modern** WhatsApp, since it now stores under
+`Android/media/com.whatsapp/`. It also drops anything under 5 seconds.
+
+So this filter is not rescuing a player that shows everything. It closes the
+gaps that a folder-based default list structurally cannot:
+
+- **Legacy paths.** `/WhatsApp/Media/WhatsApp Audio/` at the top of storage,
+  which pre-scoped-storage installs and restored backups still use. This is
+  usually the one people actually hit.
+- **Telegram, Signal**, and vendor recorder folders (`MIUI/sound_recorder`,
+  `Easy Voice Recorder`, …) that no standard-directory list covers.
+- **Recordings living anywhere.** `Recording_001.m4a` sitting in `/Music/` is
+  invisible to a folder rule.
+- **Per-file decisions.** Upstream's blacklist is folder-granular. This works
+  file by file, so one junk file in a good folder can go without taking the
+  folder with it.
+- **Screen and meeting recordings, video files, untagged timestamp-named
+  clips**, and everything between 5 and 30 seconds that the length filter lets
+  through.
+
+### How it decides
+
+Two stages, and the second one usually barely runs at all.
 
 ### Stage 1 — local rules, free and instant
 

@@ -60,6 +60,15 @@ object JunkHeuristics {
         Regex("""^signal-\d{4}-\d{2}-\d{2}""", RegexOption.IGNORE_CASE),
     )
 
+    /** Screen recorders and meeting apps, which produce audio nobody filed. */
+    private val CAPTURE_FILENAMES = listOf(
+        Regex("""^screen[\s_-]?record""", RegexOption.IGNORE_CASE),
+        Regex("""^screenrec""", RegexOption.IGNORE_CASE),
+        Regex("""^(zoom|gmt)[\s_-]?\d""", RegexOption.IGNORE_CASE),
+        Regex("""^audio_only""", RegexOption.IGNORE_CASE),
+        Regex("""^(vid|img|mvimg|pxl)[\s_-]?\d{8}""", RegexOption.IGNORE_CASE),
+    )
+
     /** Voice recorder and call recorder output. */
     private val RECORDER_FILENAMES = listOf(
         Regex("""^(new\s+)?recording[\s_-]*\d*""", RegexOption.IGNORE_CASE),
@@ -88,6 +97,15 @@ object JunkHeuristics {
         "/callrecordings",
         "/screenrecorder",
         "/screen recorder",
+        // OEM recorder folders, which upstream's folder defaults do not cover
+        // because they are vendor-specific rather than standard Android ones.
+        "/miui/sound_recorder",
+        "/miui/sound_recorder/call_rec",
+        "/sounds/voice_record",
+        "/record/",
+        "/audiorecorder",
+        "/easy voice recorder",
+        "/smart voice recorder",
     )
 
     /** Android's own non-music audio buckets. */
@@ -139,6 +157,14 @@ object JunkHeuristics {
             }
             if (RECORDER_FILENAMES.any { it.containsMatchIn(name) }) {
                 return junk("Named like a voice recording")
+            }
+            if (CAPTURE_FILENAMES.any { it.containsMatchIn(name) }) {
+                return junk("Named like a screen or meeting recording")
+            }
+            // "some doesn't even have names" — a file with nothing but an
+            // extension was never something anyone chose to keep as music.
+            if (name.isBlank()) {
+                return junk("File has no name")
             }
             if (c.isRecording) {
                 return junk("Marked as a recording by Android")
@@ -215,6 +241,17 @@ object JunkHeuristics {
         if (c.isAudiobook) add(Signal(-14, "marked as an audiobook"))
         if (c.folder.endsWith("/download") || c.folder.endsWith("/downloads")) {
             add(Signal(-8, "sitting in Downloads"))
+        }
+        // Another app's private media directory. Weighted rather than decisive:
+        // a few legitimate music apps do keep libraries under here.
+        if (c.folder.contains("/android/media/") || c.folder.contains("/android/data/")) {
+            add(Signal(-20, "inside another app's storage"))
+        }
+        // Camera and gallery folders hold captures, not music.
+        if (listOf("/dcim", "/movies", "/pictures", "/screenshots")
+                .any { c.folder.contains(it) }
+        ) {
+            add(Signal(-18, "in a camera or gallery folder"))
         }
     }
 

@@ -96,6 +96,7 @@ class DownloadService : Service() {
             is JobStage.Reading -> getString(R.string.ytdlp_reading)
             is JobStage.Updating -> getString(R.string.ytdlp_updating)
             is JobStage.Retrying -> getString(R.string.ytdlp_retrying, s.inSeconds, s.attempt)
+            is JobStage.Pacing -> getString(R.string.ytdlp_pacing, s.inSeconds)
             is JobStage.Downloading -> "${s.progress.toInt()}%"
             is JobStage.FindingArtwork -> getString(R.string.ytdlp_finding_artwork)
             is JobStage.Tagging -> getString(R.string.ytdlp_tagging)

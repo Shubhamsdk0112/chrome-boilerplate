@@ -65,6 +65,14 @@ dependencies {
     implementation("androidx.media3:media3-session:1.10.1")
     implementation("androidx.media3:media3-common:1.10.1")
 
+    // Pull-to-refresh on the library screen: the SwipeRefreshLayout is
+    // referenced from the app's layout XML, so it is `api`; the rest is what
+    // PullToRefresh needs to find the current page's list.
+    api("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("com.google.android.material:material:1.13.0")
+
     implementation("androidx.core:core-ktx:1.17.0")
     // FilterStore writes into the app's default SharedPreferences, which the
     // app reads through androidx.preference; same version as the app module.

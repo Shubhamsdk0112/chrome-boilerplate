@@ -117,6 +117,8 @@ sealed interface JobStage {
     data object Cancelled : JobStage
     /** Failed in a way that tends to pass; will run again after [inSeconds]. */
     data class Retrying(val inSeconds: Int, val attempt: Int) : JobStage
+    /** Waiting a randomised pause before hitting YouTube again. */
+    data class Pacing(val inSeconds: Int) : JobStage
 
     val isTerminal: Boolean
         get() = this is Done || this is Failed || this is Cancelled
@@ -180,9 +182,15 @@ class DownloadRepository(private val context: Context) {
                 resumed.forEach { queue.trySend(it.id) }
                 DownloadService.ensureRunning(context)
             }
+            var lastYouTubeFinishedAt = 0L
             for (jobId in queue) {
+                val job = _jobs.value.firstOrNull { it.id == jobId }
+                if (job != null && job.kind == JobKind.YOUTUBE && job.stage !is JobStage.Cancelled) {
+                    pace(jobId, lastYouTubeFinishedAt)
+                }
                 runCatching { process(jobId) }
                     .onFailure { Log.e(TAG, "job $jobId blew up", it) }
+                if (job?.kind == JobKind.YOUTUBE) lastYouTubeFinishedAt = System.currentTimeMillis()
             }
         }
     }
@@ -252,6 +260,27 @@ class DownloadRepository(private val context: Context) {
     /** Everything that failed, back into the queue. */
     fun retryAllFailed() {
         _jobs.value.filter { it.stage is JobStage.Failed }.forEach { retry(it.id) }
+    }
+
+    /**
+     * The pause between consecutive YouTube jobs, from the pacing setting.
+     * Counted from when the previous one finished, so a job that was queued
+     * while the pause was already running does not wait twice.
+     */
+    private suspend fun pace(jobId: String, lastFinishedAt: Long) {
+        if (lastFinishedAt == 0L) return
+        val gap = org.akanework.gramophone.extras.importer.Pacing.read(context).gapSeconds()
+        val remaining = gap - (System.currentTimeMillis() - lastFinishedAt) / 1000
+        if (remaining <= 0) return
+        Log.i(TAG, "pacing: waiting ${remaining}s before the next YouTube job")
+        var left = remaining.toInt()
+        while (left > 0) {
+            if (currentStage(jobId) is JobStage.Cancelled) return
+            update(jobId) { it.copy(stage = JobStage.Pacing(left)) }
+            delay(1_000)
+            left--
+        }
+        update(jobId) { if (it.stage is JobStage.Pacing) it.copy(stage = JobStage.Queued) else it }
     }
 
     /**
@@ -484,11 +513,24 @@ class DownloadRepository(private val context: Context) {
         }
 
         update(jobId) { it.copy(stage = JobStage.Downloading(0f, 0)) }
+        val pacing = org.akanework.gramophone.extras.importer.Pacing.read(context)
         val request = YoutubeDLRequest(job.url)
             .addOption("--no-playlist")
             .addOption("--ignore-config")
             .addOption("--no-mtime")
             .addOption("--newline")
+            .addOption("--retries", "3")
+            .addOption("--fragment-retries", "3")
+            .apply {
+                // yt-dlp's own randomised pause before the media download and
+                // between its metadata requests: the same trick as the gap
+                // between jobs, one level down.
+                if (pacing.requestSleep > 0) {
+                    addOption("--sleep-requests", pacing.requestSleep.toString())
+                    addOption("--sleep-interval", (pacing.requestSleep * 2).toString())
+                    addOption("--max-sleep-interval", (pacing.requestSleep * 6).toString())
+                }
+            }
             .addOption("-f", job.format.selector)
             .addOption("-x")
             .addOption("--audio-format", job.format.id)

@@ -133,7 +133,7 @@ rm -rf out
 set +e
 "$KOTLINC" stubs/*.kt \
     "$SRC/main/java/org/akanework/gramophone/extras/filter/"*.kt \
-    "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex,JobStore}.kt     "$SRC/main/java/org/akanework/gramophone/extras/podcast/"{Feed,PodcastSearch,PodcastStore,EpisodeDownloader}.kt \
+    "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex,JobStore,Pacing}.kt     "$SRC/main/java/org/akanework/gramophone/extras/podcast/"{Feed,PodcastSearch,PodcastStore,EpisodeDownloader}.kt \
     "$SRC/test/java/org/akanework/gramophone/extras/"*/*.kt \
     -classpath "$CP" -d out > compile.log 2>&1
 compile_rc=$?

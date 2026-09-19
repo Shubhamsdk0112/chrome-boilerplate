@@ -27,8 +27,11 @@ class AnchorMissing(RuntimeError):
     pass
 
 
-def patch(path: Path, anchor: str, replacement: str, *, marker: str) -> str:
-    """Replace `anchor` with `replacement`, unless `marker` is already present."""
+def patch(path: Path, anchor: str, replacement: str, *, marker: str, every: bool = False) -> str:
+    """Replace `anchor` with `replacement`, unless `marker` is already present.
+
+    `every=True` replaces all occurrences, for a line upstream repeats verbatim.
+    """
     text = path.read_text(encoding="utf-8")
     if marker in text:
         return f"  = {path.name}: already patched"
@@ -37,7 +40,8 @@ def patch(path: Path, anchor: str, replacement: str, *, marker: str) -> str:
             f"{path}: could not find the anchor below. Upstream has changed; "
             f"apply this edit by hand.\n--- anchor ---\n{anchor}\n--------------"
         )
-    path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8", newline="\n")
+    count = -1 if every else 1
+    path.write_text(text.replace(anchor, replacement, count), encoding="utf-8", newline="\n")
     return f"  + {path.name}: patched"
 
 
@@ -348,6 +352,30 @@ def main(root: Path) -> int:
     ))
     steps.extend(palette.apply_to_checkout(root))
 
+    # The player tints itself from the album cover by default (upstream's
+    # "content-based colour"), which replaces the palette with whatever the
+    # cover happens to be. Off by default; still a switch under Player UI.
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "ui" / "components" / "FullBottomSheet.kt",
+        anchor='prefs.getBooleanStrict("content_based_color", true)',
+        replacement='prefs.getBooleanStrict("content_based_color", false)',
+        marker='getBooleanStrict("content_based_color", false)',
+        every=True,
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_player.xml",
+        anchor="""        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:icon="@drawable/ic_colors"
+            android:key="content_based_color\"""",
+        replacement="""        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:icon="@drawable/ic_colors"
+            android:key="content_based_color\"""",
+        marker='android:defaultValue="false"\n            android:icon="@drawable/ic_colors"',
+    ))
+
     # ------------------------------------------------------------------
     # 6b. One-tap entry from the library screen. Settings is three taps deep
     #     and the importer is the feature people open most; the icon sits next
@@ -474,6 +502,52 @@ def main(root: Path) -> int:
             "import org.akanework.gramophone.extras.importer.ui.DownloaderActivity"
         ),
         marker="import org.akanework.gramophone.extras.history.ui.HistoryActivity",
+    ))
+
+    # ------------------------------------------------------------------
+    # 6c. Pull to refresh on the library screen. The pager is wrapped in a
+    #     SwipeRefreshLayout (which takes over the scrolling-view behaviour so
+    #     the collapsing header keeps working) and wired to upstream's own
+    #     updateLibrary, the same thing the "Quick refresh" menu item does.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "layout" / "fragment_viewpager.xml",
+        anchor="""    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/fragment_viewpager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />""",
+        replacement="""    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/extras_swipe_refresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/fragment_viewpager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>""",
+        marker='android:id="@+id/extras_swipe_refresh"',
+    ))
+    steps.append(patch(
+        pager,
+        anchor="""        appBarLayout = rootView.findViewById(R.id.appbarlayout)
+        appBarLayout.enableEdgeToEdgePaddingListener()""",
+        replacement="""        appBarLayout = rootView.findViewById(R.id.appbarlayout)
+        appBarLayout.enableEdgeToEdgePaddingListener()
+        // :extras — pull down at the top of a list to refresh the library.
+        rootView.findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.extras_swipe_refresh)
+            ?.let { swipe ->
+                org.akanework.gramophone.extras.ui.PullToRefresh.attach(swipe, viewPager2, appBarLayout) {
+                    SingletonImageLoader.get(requireContext()).memoryCache?.clear()
+                    (requireActivity() as MainActivity).updateLibrary { swipe.isRefreshing = false }
+                }
+            }""",
+        marker="PullToRefresh.attach",
     ))
 
     # ------------------------------------------------------------------

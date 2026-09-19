@@ -52,7 +52,11 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -94,12 +98,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.importer.AudioFormat
 import org.akanework.gramophone.extras.importer.DownloadJob
 import org.akanework.gramophone.extras.importer.DownloadRepository
 import org.akanework.gramophone.extras.importer.DownloadService
 import org.akanework.gramophone.extras.importer.JobStage
+import org.akanework.gramophone.extras.importer.Pacing
 import org.akanework.gramophone.extras.importer.YtDlp
 import org.akanework.gramophone.extras.ui.ExtrasTheme
 
@@ -172,6 +178,10 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
     var formatId by rememberSaveable { mutableStateOf(AudioFormat.M4A.id) }
     val format = AudioFormat.fromId(formatId)
     var menuOpen by remember { mutableStateOf(false) }
+    var pacingOpen by remember { mutableStateOf(false) }
+    // First touch of a preferences file is a disk read; keep it off main.
+    var pacing by remember { mutableStateOf(Pacing.SAFE) }
+    LaunchedEffect(Unit) { pacing = withContext(Dispatchers.IO) { Pacing.read(context) } }
 
     // Notifications carry the download progress; without the grant the
     // foreground service still runs, it is just invisible.
@@ -251,6 +261,10 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                                 }
                             },
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ytdlp_pacing_menu, pacingLabel(pacing))) },
+                            onClick = { menuOpen = false; pacingOpen = true },
+                        )
                         if (jobs.any { it.stage is JobStage.Failed }) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.ytdlp_retry_all)) },
@@ -272,6 +286,17 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             )
         },
     ) { insets ->
+        if (pacingOpen) {
+            PacingDialog(
+                current = pacing,
+                onPick = { choice ->
+                    pacing = choice
+                    pacingOpen = false
+                    scope.launch(Dispatchers.IO) { Pacing.write(context, choice) }
+                },
+                onDismiss = { pacingOpen = false },
+            )
+        }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -362,6 +387,53 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun pacingLabel(p: Pacing): String = stringResource(
+    when (p) {
+        Pacing.OFF -> R.string.ytdlp_pacing_off
+        Pacing.QUICK -> R.string.ytdlp_pacing_quick
+        Pacing.SAFE -> R.string.ytdlp_pacing_safe
+        Pacing.CAUTIOUS -> R.string.ytdlp_pacing_cautious
+    },
+)
+
+/** The gap between YouTube downloads; explained in the terms that matter. */
+@Composable
+private fun PacingDialog(current: Pacing, onPick: (Pacing) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ytdlp_pacing_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.ytdlp_pacing_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Pacing.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(option) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = option == current, onClick = { onPick(option) })
+                        Column(Modifier.padding(start = 4.dp)) {
+                            Text(pacingLabel(option), style = MaterialTheme.typography.bodyLarge)
+                            val detail = if (option == Pacing.OFF) stringResource(R.string.ytdlp_pacing_off_detail)
+                            else stringResource(R.string.ytdlp_pacing_detail, option.minGapSeconds, option.maxGapSeconds)
+                            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } },
+    )
 }
 
 @Composable
@@ -459,7 +531,7 @@ private fun JobCard(
                     progress = { stage.progress / 100f },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                is JobStage.Queued, is JobStage.Reading, is JobStage.Updating, is JobStage.Retrying,
+                is JobStage.Queued, is JobStage.Reading, is JobStage.Updating, is JobStage.Retrying, is JobStage.Pacing,
                 is JobStage.FindingArtwork, is JobStage.Tagging, is JobStage.Importing ->
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 else -> Unit
@@ -544,6 +616,8 @@ private fun StatusLine(stage: JobStage) {
             stringResource(R.string.ytdlp_cancelled) to MaterialTheme.colorScheme.onSurfaceVariant
         is JobStage.Retrying ->
             stringResource(R.string.ytdlp_retrying, stage.inSeconds, stage.attempt) to MaterialTheme.colorScheme.onSurfaceVariant
+        is JobStage.Pacing ->
+            stringResource(R.string.ytdlp_pacing, stage.inSeconds) to MaterialTheme.colorScheme.onSurfaceVariant
         else -> stringResource(stage.labelRes()) to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Text(

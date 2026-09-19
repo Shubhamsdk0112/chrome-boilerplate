@@ -104,7 +104,7 @@ class AiClassifier(
          * Cheap and more than capable enough to tell a song filename from a
          * voice note. Editable in settings — any OpenRouter model id works.
          */
-        const val DEFAULT_MODEL = "google/gemini-2.0-flash-lite-001"
+        const val DEFAULT_MODEL = "google/gemini-2.5-flash-lite"
 
         /** Items per request. Large enough to be cheap, small enough to stay reliable. */
         const val BATCH_SIZE = 40

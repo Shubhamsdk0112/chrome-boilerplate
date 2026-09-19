@@ -251,8 +251,8 @@ Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Updating upstream
 
-The integration touches only **48 lines across 5 upstream files**, all anchored
-on distinctive source lines. To move to a newer Gramophone, bump
+The integration touches only **52 lines across 5 upstream files** in 10 anchored
+patches. To move to a newer Gramophone, bump
 `UPSTREAM_COMMIT` in `setup.sh` and re-run it. If an anchor has moved,
 `integrate.py` stops and tells you exactly which edit to apply by hand rather
 than producing a half-patched tree.
@@ -279,8 +279,9 @@ extras/                    the new Gradle module
       AiClassifier.kt      stage two: OpenRouter, with a pure testable core
       FilterStore.kt       settings, verdict cache, the hidden-path set
       LibraryScanner.kt    MediaStore query and orchestration
+      FilterWatcher.kt     opt-in re-scan when new audio appears
       ui/FilterActivity.kt Compose settings + review screen
-  src/test/java/.../       44 unit tests
+  src/test/java/.../       61 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```

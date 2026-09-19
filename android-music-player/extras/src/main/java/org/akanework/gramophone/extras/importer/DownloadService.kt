@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
 
@@ -57,6 +58,9 @@ class DownloadService : Service() {
         startForegroundCompat(buildNotification(getString(R.string.ytdlp_preparing), null))
 
         scope.launch {
+            // The list is empty until the persisted queue has been read; acting
+            // on that would stop the service the moment the system restarts it.
+            repository.restored.first { it }
             repository.jobs.collectLatest { jobs ->
                 val active = jobs.filterNot { it.stage.isTerminal }
                 if (active.isEmpty()) {
@@ -76,7 +80,10 @@ class DownloadService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
+    // Sticky: if the system kills the process under memory pressure, it
+    // recreates the service, whose onCreate brings the repository back up,
+    // and the repository re-queues whatever was interrupted.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
         scope.cancel()

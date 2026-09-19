@@ -90,6 +90,17 @@ object FFmpeg {
     fun init(context: Context) = Unit
 }
 STUB
+# The repository starts the foreground service when it resumes interrupted
+# work; the service itself needs androidx.core's NotificationCompat.
+cat > stubs/DownloadServiceStub.kt <<'STUB'
+package org.akanework.gramophone.extras.importer
+import android.content.Context
+class DownloadService {
+    companion object {
+        fun ensureRunning(context: Context) = Unit
+    }
+}
+STUB
 cat > stubs/CoreKtxStubs.kt <<'STUB'
 package androidx.core.content
 import android.content.SharedPreferences
@@ -122,7 +133,7 @@ rm -rf out
 set +e
 "$KOTLINC" stubs/*.kt \
     "$SRC/main/java/org/akanework/gramophone/extras/filter/"*.kt \
-    "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex}.kt \
+    "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex,JobStore}.kt \
     "$SRC/test/java/org/akanework/gramophone/extras/"*/*.kt \
     -classpath "$CP" -d out > compile.log 2>&1
 compile_rc=$?

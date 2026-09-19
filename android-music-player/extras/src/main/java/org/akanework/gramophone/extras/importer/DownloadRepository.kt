@@ -25,6 +25,8 @@ import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -141,12 +143,43 @@ class DownloadRepository(private val context: Context) {
     private val _jobs = MutableStateFlow<List<DownloadJob>>(emptyList())
     val jobs: StateFlow<List<DownloadJob>> = _jobs.asStateFlow()
 
+    /** True once the persisted list has been read; the UI shows nothing before. */
+    private val _restored = MutableStateFlow(false)
+    val restored: StateFlow<Boolean> = _restored.asStateFlow()
+
+    private var pendingSave: Job? = null
+
     init {
         scope.launch {
+            // Whatever the last process left behind. Jobs that were mid-flight
+            // come back queued and go straight into the channel; yt-dlp resumes
+            // the .part in the work directory, which is not cleared on a kill.
+            val saved = JobStore.load(context)
+            _jobs.value = saved
+            _restored.value = true
+            val resumed = saved.filterNot { it.stage.isTerminal }
+            if (resumed.isNotEmpty()) {
+                Log.i(TAG, "resuming ${resumed.size} interrupted job(s)")
+                resumed.forEach { queue.trySend(it.id) }
+                DownloadService.ensureRunning(context)
+            }
             for (jobId in queue) {
                 runCatching { process(jobId) }
                     .onFailure { Log.e(TAG, "job $jobId blew up", it) }
             }
+        }
+    }
+
+    /**
+     * Writes the list shortly after the last change. Progress updates arrive
+     * many times a second; one write per burst is plenty, and a kill in the
+     * debounce window costs nothing worse than a re-run of the current job.
+     */
+    private fun scheduleSave() {
+        pendingSave?.cancel()
+        pendingSave = scope.launch {
+            delay(400)
+            JobStore.save(context, _jobs.value)
         }
     }
 
@@ -159,6 +192,7 @@ class DownloadRepository(private val context: Context) {
             ?.let { return it.id }
         val id = UUID.randomUUID().toString()
         _jobs.value += DownloadJob(id = id, url = trimmed, format = format)
+        scheduleSave()
         queue.trySend(id)
         return id
     }
@@ -170,6 +204,7 @@ class DownloadRepository(private val context: Context) {
 
     fun clearFinished() {
         _jobs.value = _jobs.value.filterNot { it.stage.isTerminal }
+        scheduleSave()
     }
 
     /** Queues a failed or cancelled job again, in place of the old card. */
@@ -359,6 +394,7 @@ class DownloadRepository(private val context: Context) {
      */
     private fun update(jobId: String, transform: (DownloadJob) -> DownloadJob) {
         _jobs.update { jobs -> jobs.map { if (it.id == jobId) transform(it) else it } }
+        scheduleSave()
     }
 
     companion object {
@@ -390,5 +426,17 @@ class DownloadRepository(private val context: Context) {
             instance ?: synchronized(this) {
                 instance ?: DownloadRepository(context.applicationContext).also { instance = it }
             }
+
+        /**
+         * Called from Application.onCreate. Cheap when nothing was
+         * interrupted: one small file read on the IO dispatcher. When
+         * something was, the repository comes up and carries on.
+         */
+        fun resumeOnStartup(context: Context) {
+            val app = context.applicationContext
+            CoroutineScope(Dispatchers.IO).launch {
+                if (JobStore.load(app).any { !it.stage.isTerminal }) get(app)
+            }
+        }
     }
 }

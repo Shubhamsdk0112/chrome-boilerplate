@@ -348,6 +348,21 @@ def main(root: Path) -> int:
         marker="FilterWatcher.ensureStarted",
     ))
 
+    # ------------------------------------------------------------------
+    # 8b. Pick up downloads that a process death interrupted. One small file
+    #     read on IO when there is nothing to do. Anchored on the line the
+    #     previous patch inserted, so it applies to old and new checkouts.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "GramophoneApplication.kt",
+        anchor="""        org.akanework.gramophone.extras.filter.FilterWatcher.ensureStarted(this)""",
+        replacement="""        org.akanework.gramophone.extras.filter.FilterWatcher.ensureStarted(this)
+        // Resumes any :extras download that a process death interrupted.
+        org.akanework.gramophone.extras.importer.DownloadRepository.resumeOnStartup(this)""",
+        marker="DownloadRepository.resumeOnStartup",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

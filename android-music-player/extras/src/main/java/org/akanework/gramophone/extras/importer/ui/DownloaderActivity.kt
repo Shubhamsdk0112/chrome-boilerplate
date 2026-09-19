@@ -162,6 +162,7 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { DownloadRepository.get(context) }
     val jobs by repository.jobs.collectAsStateWithLifecycle()
+    val restored by repository.restored.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbars = remember { SnackbarHostState() }
 
@@ -310,7 +311,7 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                 }
             }
 
-            if (jobs.isEmpty()) {
+            if (restored && jobs.isEmpty()) {
                 item {
                     Text(
                         text = stringResource(R.string.ytdlp_empty),

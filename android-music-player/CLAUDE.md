@@ -133,8 +133,8 @@ Gradle build — it cannot type-check Compose.
   are tested (15 tests, including every malformed-response path). Failure there
   leaves files visible.
 - Anything on a real arm64 phone, or a release build.
-- The automatic update-and-retry path on a device (unit-tested; the manual
-  update was exercised on the emulator).
+- A podcast download interrupted mid-transfer (the Range resume path is
+  unit-tested; on the emulator episodes finish before a kill lands).
 
 ## Known follow-ups
 
@@ -142,7 +142,5 @@ Gradle build — it cannot type-check Compose.
   control in the player; nothing podcast-specific yet).
 - Auto-download new episodes / refresh feeds in the background.
 
-- Importing the same video twice creates a second file; a video-id check
-  against the library would avoid that.
 - Downloads and the OpenRouter call open untagged sockets, which upstream's
   VmPolicy logs (not a dialog). `TrafficStats.setThreadStatsTag` would quiet it.

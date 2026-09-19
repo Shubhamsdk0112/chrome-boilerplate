@@ -21,8 +21,10 @@ holding three features:
   video's chapters; `Pacing.longVideosToPodcasts` is the switch. "On this
   phone" lists MediaStore audio ≥ 10 min as a virtual show.
 - **filter** — hides non-music (WhatsApp voice notes, recordings, ringtones,
-  video files) using local rules plus an optional OpenRouter pass for whatever
-  the rules cannot place.
+  video files, audio ≥ 10 min) using local rules plus an optional OpenRouter
+  pass for whatever the rules cannot place. On by default and run from the
+  patched `MainActivity.updateLibrary` before every library read, so a fresh
+  install never shows the junk; the AI pass is opt-in.
 
 Plus a curated palette (Spotify-style black + green, `integrate/palette.py`)
 applied to upstream's resources and to the Compose screens alike.
@@ -57,7 +59,10 @@ emulator:
   own, chapters parsed, chapter skip lands on the right seconds; a 403 from
   YouTube went through the automatic retry + pacing.
 - Pull-to-refresh, download pacing menu, green player, long-audio rule.
+- Fresh install with nothing touched: 7 files, 2 hidden at first launch
+  (voice note, 12-min audiobook); the Filter screen shows that result.
 - `./verify.sh`: 115 unit tests pass, on Windows too.
+- Release APKs (R8, signed) smoke-tested on the emulator before each tag.
 
 ## Build
 
@@ -111,8 +116,10 @@ and commons-compress — without the last one the very first download dies
 in commons-compress's static initialiser. Always run one download on a
 release build before shipping it.
 
-Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py`
-(uses the stored git credential; first one is `extras-v0.1.0`).
+Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py <tag>`
+(uses the stored git credential; notes come from `C:\Users\shubh\dev\release-notes.md`).
+Tags so far: `extras-v0.1.0`, `extras-v0.2.0`. The PR from the working branch
+to `main` is opened with `C:\Users\shubh\dev\open_pr.py` (same credential).
 
 ## Verify without the SDK
 

@@ -101,6 +101,44 @@ class AiClassifierTest {
     }
 
     // ---------------------------------------------------------------
+    // Cost cap
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `a small batch is sent whole`() {
+        val small = List(10) { candidate("f$it.mp3") }
+        val (toAsk, deferred) = AiClassifier.capBatch(small)
+        assertEquals(10, toAsk.size)
+        assertEquals(0, deferred)
+    }
+
+    @Test
+    fun `an oversized batch is capped and the rest deferred`() {
+        // A first run on a big untagged library must not quietly push
+        // thousands of items through a paid API.
+        val huge = List(AiClassifier.MAX_PER_SCAN + 250) { candidate("f$it.mp3") }
+        val (toAsk, deferred) = AiClassifier.capBatch(huge)
+        assertEquals(AiClassifier.MAX_PER_SCAN, toAsk.size)
+        assertEquals(250, deferred)
+        // Deferring must be lossless: nothing is dropped, it is just later.
+        assertEquals(huge.size, toAsk.size + deferred)
+        assertEquals(huge.take(AiClassifier.MAX_PER_SCAN), toAsk)
+    }
+
+    @Test
+    fun `an exactly full batch is not deferred`() {
+        val exact = List(AiClassifier.MAX_PER_SCAN) { candidate("f$it.mp3") }
+        assertEquals(0, AiClassifier.capBatch(exact).second)
+    }
+
+    @Test
+    fun `an empty batch is handled`() {
+        val (toAsk, deferred) = AiClassifier.capBatch(emptyList())
+        assertTrue(toAsk.isEmpty())
+        assertEquals(0, deferred)
+    }
+
+    // ---------------------------------------------------------------
     // Response
     // ---------------------------------------------------------------
 

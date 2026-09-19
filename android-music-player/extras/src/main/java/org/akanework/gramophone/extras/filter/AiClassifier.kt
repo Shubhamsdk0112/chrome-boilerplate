@@ -109,6 +109,28 @@ class AiClassifier(
         /** Items per request. Large enough to be cheap, small enough to stay reliable. */
         const val BATCH_SIZE = 40
 
+        /**
+         * Ceiling on how many items one scan will send.
+         *
+         * A first run against a large, badly tagged library could otherwise
+         * push thousands of items through the API in one go and hand the user
+         * a bill they never agreed to. Because verdicts are cached, stopping
+         * early is not lossy: each subsequent scan picks up where this one left
+         * off, and the library converges over a few runs.
+         */
+        const val MAX_PER_SCAN = 600
+
+        /**
+         * The slice of [unsure] that this scan will actually send, and how many
+         * were held back for next time.
+         */
+        fun capBatch(unsure: List<AudioCandidate>): Pair<List<AudioCandidate>, Int> =
+            if (unsure.size <= MAX_PER_SCAN) {
+                unsure to 0
+            } else {
+                unsure.take(MAX_PER_SCAN) to (unsure.size - MAX_PER_SCAN)
+            }
+
         private val SYSTEM_PROMPT = """
             You sort audio files into MUSIC or JUNK for a phone music player.
 

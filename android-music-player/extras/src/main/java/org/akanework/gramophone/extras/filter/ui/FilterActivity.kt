@@ -373,6 +373,13 @@ private fun FilterScreen() {
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
+                                if (r.aiDeferred > 0) {
+                                    Text(
+                                        stringResource(R.string.filter_result_deferred, r.aiDeferred),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     }

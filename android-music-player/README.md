@@ -163,6 +163,12 @@ Only *unsure* files reach it, so on a real library this is a handful of items,
 not thousands. They are batched 40 per request to OpenRouter and the verdicts
 are cached permanently, so a file is never classified twice.
 
+There is also a hard cap of 600 items per scan. A first run against a big,
+badly tagged library could otherwise push thousands of items through a paid API
+in one go and hand you a bill you never agreed to. Because verdicts are cached,
+stopping early is not lossy — the screen tells you how many were held back, and
+each subsequent scan picks up where the last one stopped.
+
 **What gets sent: filename, folder, duration, bitrate and tags. That is all.**
 No audio ever leaves the device — there is nothing in the request that a file
 listing does not already show. There is a unit test asserting this.
@@ -256,7 +262,7 @@ Run the tests with `./gradlew :extras:testDebugUnitTest`.
 
 ### Verifying without the Android SDK
 
-`./verify.sh` compiles the module and runs all 71 unit tests using only Maven
+`./verify.sh` compiles the module and runs all 75 unit tests using only Maven
 Central — a real `android.jar` (Robolectric publishes full framework jars), the
 actual youtubedl-android classes from its published `.aar`, and two tiny local
 stubs for the androidx symbols, since androidx is published only on Google's
@@ -300,7 +306,7 @@ extras/                    the new Gradle module
       LibraryScanner.kt    MediaStore query and orchestration
       FilterWatcher.kt     opt-in re-scan when new audio appears
       ui/FilterActivity.kt Compose settings + review screen
-  src/test/java/.../       71 unit tests
+  src/test/java/.../       75 unit tests
 integrate/integrate.py     applies the wiring into a Gramophone checkout
 setup.sh                   clone + integrate in one step
 ```

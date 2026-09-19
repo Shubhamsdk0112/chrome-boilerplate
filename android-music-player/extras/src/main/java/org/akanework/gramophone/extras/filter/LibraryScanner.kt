@@ -54,6 +54,8 @@ class LibraryScanner(context: Context) {
         val entries: List<Entry>,
         val askedAi: Int,
         val aiAnswered: Int,
+        /** Unsure items held back by the per-scan cap; scan again to continue. */
+        val aiDeferred: Int = 0,
     ) {
         val total get() = entries.size
         val hidden get() = entries.count { it.verdict.judgement == Judgement.JUNK }
@@ -94,12 +96,16 @@ class LibraryScanner(context: Context) {
 
         // --- stage two -------------------------------------------------
         var aiAnswered = 0
-        val askedAi = if (store.aiEnabled && store.apiKey.isNotBlank()) unsure.size else 0
-        if (askedAi > 0) {
+        var deferred = 0
+        var askedAi = 0
+        if (store.aiEnabled && store.apiKey.isNotBlank() && unsure.isNotEmpty()) {
+            val (toAsk, heldBack) = AiClassifier.capBatch(unsure)
+            askedAi = toAsk.size
+            deferred = heldBack
             val classifier = AiClassifier(store.apiKey, store.model)
             var done = 0
-            for (batch in unsure.chunked(AiClassifier.BATCH_SIZE)) {
-                onProgress(Progress(Stage.ASKING_AI, done, unsure.size))
+            for (batch in toAsk.chunked(AiClassifier.BATCH_SIZE)) {
+                onProgress(Progress(Stage.ASKING_AI, done, toAsk.size))
                 val answers = classifier.classify(batch)
                 answers.forEach { (indexInBatch, verdict) ->
                     val candidate = batch[indexInBatch]
@@ -130,7 +136,7 @@ class LibraryScanner(context: Context) {
         }
 
         onProgress(Progress(Stage.DONE, entries.size, entries.size))
-        Result(entries, askedAi, aiAnswered)
+        Result(entries, askedAi, aiAnswered, deferred)
     }
 
     // ------------------------------------------------------------------

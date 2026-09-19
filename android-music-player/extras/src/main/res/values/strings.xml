@@ -71,6 +71,7 @@
     <string name="filter_result_hidden">Hid %1$d of %2$d files</string>
     <string name="filter_result_kept">%1$d kept as music, %2$d left visible because they were unclear</string>
     <string name="filter_result_ai">The AI settled %1$d of %2$d unclear files</string>
+    <string name="filter_result_deferred">%1$d more were held back to keep the cost down — scan again to continue</string>
     <string name="filter_unhide_all">Show everything again</string>
     <string name="filter_review">Hidden files</string>
     <string name="filter_keep">Keep</string>

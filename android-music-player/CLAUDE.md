@@ -69,6 +69,12 @@ emulator:
   around at the queue ends (`EndedWorkaroundPlayer.getState` +
   `onPlayerCommandRequest`); `extras/player/FocusResumer` resumes after
   another app's audio stops (Behaviour setting, default on).
+- v0.2.2: YouTube cookies (`importer/Cookies.kt`, dialog in the downloader
+  menu; private jar passed as `--cookies` to probe + download). The bot
+  check ("Sign in to confirm you're not a bot") is an IP flag — reproduced
+  from the PC with plain yt-dlp — and is now: explained, one throttled
+  yt-dlp update, cookies as the fix. `Failed.botCheck` is persisted so
+  saving cookies retries exactly those jobs.
 
 ## Build
 
@@ -124,7 +130,7 @@ release build before shipping it.
 
 Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py <tag>`
 (uses the stored git credential; notes come from `C:\Users\shubh\dev\release-notes.md`).
-Tags so far: `extras-v0.1.0`, `extras-v0.2.0`, `extras-v0.2.1`. The PR from the working branch
+Tags so far: `extras-v0.1.0`, `extras-v0.2.0`, `extras-v0.2.1`, `extras-v0.2.2`. The PR from the working branch
 to `main` is opened with `C:\Users\shubh\dev\open_pr.py` (same credential).
 
 ## Verify without the SDK

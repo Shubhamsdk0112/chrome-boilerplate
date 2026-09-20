@@ -119,7 +119,7 @@ sealed interface JobStage {
         /** Podcast jobs: the episode's guid, for tap-to-play. */
         val episodeGuid: String? = null,
     ) : JobStage
-    data class Failed(val message: String) : JobStage
+    data class Failed(val message: String, val botCheck: Boolean = false) : JobStage
     data object Cancelled : JobStage
     /** Failed in a way that tends to pass; will run again after [inSeconds]. */
     data class Retrying(val inSeconds: Int, val attempt: Int) : JobStage
@@ -270,6 +270,32 @@ class DownloadRepository(private val context: Context) {
         _jobs.value.filter { it.stage is JobStage.Failed }.forEach { retry(it.id) }
     }
 
+    /** Only the jobs YouTube's bot check stopped — what new cookies fix. */
+    fun retryBotChecked(): Int {
+        val blocked = _jobs.value.filter { (it.stage as? JobStage.Failed)?.botCheck == true }
+        blocked.forEach { retry(it.id) }
+        return blocked.size
+    }
+
+    /**
+     * The failure card for a yt-dlp error. The bot check gets a message that
+     * depends on whether cookies are already in use: without them the fix is
+     * to add some; with them, the export has probably expired.
+     */
+    private fun failedStage(raw: String?, fallback: String? = null): JobStage.Failed {
+        if (DownloadError.isBotCheck(raw)) {
+            val message = if (Cookies.isSet(context)) {
+                "YouTube's bot check stopped this even with your saved cookies. " +
+                    "They may have expired: export fresh ones from a signed-in browser " +
+                    "and save them from the menu, or wait a few hours."
+            } else {
+                DownloadError.humanize(raw)
+            }
+            return JobStage.Failed(message, botCheck = true)
+        }
+        return JobStage.Failed(fallback ?: DownloadError.humanize(raw))
+    }
+
     /**
      * The pause between consecutive YouTube jobs, from the pacing setting.
      * Counted from when the previous one finished, so a job that was queued
@@ -355,6 +381,9 @@ class DownloadRepository(private val context: Context) {
                     else -> null
                 }
                 if (!DownloadError.needsUpdate(stderr)) throw e
+                // A whole batch failing on the bot check would otherwise ask
+                // GitHub for an update once per song; once an hour is plenty.
+                if (DownloadError.isBotCheck(stderr) && !YtDlp.updateIsDue(context)) throw e
                 Log.i(TAG, "yt-dlp looks stale, updating before retrying ${job.url}")
                 update(jobId) { it.copy(stage = JobStage.Updating) }
                 val status = runCatching { YtDlp.update(context) }
@@ -410,14 +439,14 @@ class DownloadRepository(private val context: Context) {
             // without this branch the card shows a Python traceback.
             Log.e(TAG, "import failed for ${job.url}", e)
             if (!scheduleRetryIfTransient(jobId, e.message)) {
-                update(jobId) { it.copy(stage = JobStage.Failed(DownloadError.humanize(e.message))) }
+                update(jobId) { it.copy(stage = failedStage(e.message)) }
             }
         } catch (e: Exception) {
             Log.e(TAG, "import failed for ${job.url}", e)
             val raw = (e as? YtDlpFailure)?.stderr ?: e.message
             if (!scheduleRetryIfTransient(jobId, raw)) {
                 update(jobId) {
-                    it.copy(stage = JobStage.Failed(e.message ?: e::class.java.simpleName))
+                    it.copy(stage = failedStage(raw, fallback = e.message ?: e::class.java.simpleName))
                 }
             }
         } finally {
@@ -583,7 +612,7 @@ class DownloadRepository(private val context: Context) {
      */
     private suspend fun fetch(job: DownloadJob, workDir: File): Pair<TrackMetadata, File>? {
         val jobId = job.id
-        val meta = MetadataProbe.probe(job.url)
+        val meta = MetadataProbe.probe(job.url, Cookies.path(context))
         update(jobId) {
             it.copy(title = meta.title, artist = meta.artist, videoId = meta.videoId)
         }
@@ -619,6 +648,10 @@ class DownloadRepository(private val context: Context) {
             .addOption("--newline")
             .addOption("--retries", "3")
             .addOption("--fragment-retries", "3")
+            .apply {
+                // The user's YouTube login, when they have saved one. See Cookies.
+                Cookies.path(context)?.let { addOption("--cookies", it) }
+            }
             .apply {
                 // yt-dlp's own randomised pause before the media download and
                 // between its metadata requests: the same trick as the gap

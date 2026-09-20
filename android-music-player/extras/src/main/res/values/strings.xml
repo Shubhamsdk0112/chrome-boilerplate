@@ -49,6 +49,24 @@
 
     <!-- yt-dlp maintenance -->
     <string name="ytdlp_update">Update yt-dlp</string>
+    <string name="ytdlp_cookies_menu">YouTube cookies</string>
+    <string name="ytdlp_cookies_title">YouTube cookies</string>
+    <string name="ytdlp_cookies_explainer">When YouTube flags your network as a bot, a signed-in session still gets through. In a browser signed in to a spare Google account, export the cookies while on youtube.com (the Cookie-Editor extension\'s JSON export, or a Netscape cookies.txt), then paste the text here or pick the file. Every download is tied to that account, so not your main one.</string>
+    <string name="ytdlp_cookies_none">No cookies saved.</string>
+    <string name="ytdlp_cookies_status">%1$d cookies saved · signed in · valid until %2$s</string>
+    <string name="ytdlp_cookies_status_session">%1$d cookies saved · signed in</string>
+    <string name="ytdlp_cookies_status_anon">%1$d cookies saved, but none of them is a login — export from a browser that is signed in.</string>
+    <string name="ytdlp_cookies_paste_hint">Paste the export here</string>
+    <string name="ytdlp_cookies_pick">Pick file</string>
+    <string name="ytdlp_cookies_remove">Remove</string>
+    <string name="ytdlp_cookies_save">Save</string>
+    <string name="ytdlp_cookies_saved">Cookies saved</string>
+    <plurals name="ytdlp_cookies_saved_retrying">
+        <item quantity="one">Cookies saved · retrying %1$d blocked download</item>
+        <item quantity="other">Cookies saved · retrying %1$d blocked downloads</item>
+    </plurals>
+    <string name="ytdlp_cookies_removed">Cookies removed</string>
+    <string name="ytdlp_cookies_read_failed">Could not read that file</string>
     <string name="ytdlp_updating">Updating yt-dlp…</string>
     <string name="ytdlp_updated">yt-dlp is now %1$s</string>
     <string name="ytdlp_update_failed">Could not update yt-dlp</string>

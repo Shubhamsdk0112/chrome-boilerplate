@@ -101,6 +101,9 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.akanework.gramophone.extras.importer.Cookies
+import java.text.DateFormat
+import java.util.Date
 import org.akanework.gramophone.extras.R
 import org.akanework.gramophone.extras.importer.AudioFormat
 import org.akanework.gramophone.extras.importer.DownloadJob
@@ -225,6 +228,7 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
 
     val active = jobs.filterNot { it.stage.isTerminal }
     val finished = jobs.filter { it.stage.isTerminal }.asReversed()
+    var cookiesOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbars) },
@@ -271,6 +275,10 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                             onClick = { menuOpen = false; pacingOpen = true },
                         )
                         DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ytdlp_cookies_menu)) },
+                            onClick = { menuOpen = false; cookiesOpen = true },
+                        )
+                        DropdownMenuItem(
                             text = { Text(stringResource(R.string.ytdlp_long_to_podcasts)) },
                             trailingIcon = {
                                 Checkbox(checked = longToPodcasts, onCheckedChange = null)
@@ -301,6 +309,27 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             )
         },
     ) { insets ->
+        if (cookiesOpen) {
+            CookiesDialog(
+                onSaved = { _ ->
+                    cookiesOpen = false
+                    val retried = repository.retryBotChecked()
+                    scope.launch {
+                        snackbars.showSnackbar(
+                            if (retried == 0) context.getString(R.string.ytdlp_cookies_saved)
+                            else context.resources.getQuantityString(
+                                R.plurals.ytdlp_cookies_saved_retrying, retried, retried
+                            )
+                        )
+                    }
+                },
+                onRemoved = {
+                    cookiesOpen = false
+                    scope.launch { snackbars.showSnackbar(context.getString(R.string.ytdlp_cookies_removed)) }
+                },
+                onDismiss = { cookiesOpen = false },
+            )
+        }
         if (pacingOpen) {
             PacingDialog(
                 current = pacing,
@@ -413,6 +442,124 @@ private fun pacingLabel(p: Pacing): String = stringResource(
         Pacing.CAUTIOUS -> R.string.ytdlp_pacing_cautious
     },
 )
+
+/**
+ * Paste or pick a browser cookie export; see [Cookies] for why. Reads and
+ * writes happen off the main thread — the export can be a few hundred KB.
+ */
+@Composable
+private fun CookiesDialog(
+    onSaved: (Cookies.Summary) -> Unit,
+    onRemoved: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var summary by remember { mutableStateOf<Cookies.Summary?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        summary = withContext(Dispatchers.IO) { Cookies.summary(context) }
+        loaded = true
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            busy = true
+            error = null
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+                }
+            }.onSuccess { text = it }
+                .onFailure { error = context.getString(R.string.ytdlp_cookies_read_failed) }
+            busy = false
+        }
+    }
+
+    fun save() {
+        scope.launch {
+            busy = true
+            error = null
+            val pasted = text
+            withContext(Dispatchers.IO) { runCatching { Cookies.import(context, pasted) } }
+                .onSuccess { onSaved(it) }
+                .onFailure { error = it.message ?: it::class.java.simpleName }
+            busy = false
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ytdlp_cookies_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.ytdlp_cookies_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (loaded) {
+                    val s = summary
+                    Text(
+                        text = when {
+                            s == null -> stringResource(R.string.ytdlp_cookies_none)
+                            !s.loggedIn -> stringResource(R.string.ytdlp_cookies_status_anon, s.count)
+                            s.loginExpiresAt > 0 -> stringResource(
+                                R.string.ytdlp_cookies_status, s.count,
+                                DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(s.loginExpiresAt * 1000)),
+                            )
+                            else -> stringResource(R.string.ytdlp_cookies_status_session, s.count)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (s?.loggedIn == true) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.ytdlp_cookies_paste_hint)) },
+                    minLines = 3,
+                    maxLines = 6,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                error?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { picker.launch(arrayOf("*/*")) }, enabled = !busy) {
+                        Text(stringResource(R.string.ytdlp_cookies_pick))
+                    }
+                    if (summary != null) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    withContext(Dispatchers.IO) { Cookies.clear(context) }
+                                    onRemoved()
+                                }
+                            },
+                            enabled = !busy,
+                        ) { Text(stringResource(R.string.ytdlp_cookies_remove)) }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { save() }, enabled = text.isNotBlank() && !busy) {
+                Text(stringResource(R.string.ytdlp_cookies_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+        },
+    )
+}
 
 /** The gap between YouTube downloads; explained in the terms that matter. */
 @Composable

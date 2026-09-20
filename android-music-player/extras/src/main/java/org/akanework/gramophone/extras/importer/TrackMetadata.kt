@@ -81,13 +81,14 @@ object MetadataProbe {
         "%(upload_date|)s",
     ).joinToString(SEP)
 
-    suspend fun probe(url: String): TrackMetadata = withContext(Dispatchers.IO) {
+    suspend fun probe(url: String, cookiesPath: String? = null): TrackMetadata = withContext(Dispatchers.IO) {
         val request = YoutubeDLRequest(url)
             .addOption("--skip-download")
             .addOption("--no-playlist")
             .addOption("--no-warnings")
             .addOption("--ignore-config")
             .addOption("--print", PRINT_TEMPLATE)
+            .apply { if (cookiesPath != null) addOption("--cookies", cookiesPath) }
 
         // youtubedl-android throws on a non-zero exit with stderr as the
         // message; the exitCode check below is kept for the version that

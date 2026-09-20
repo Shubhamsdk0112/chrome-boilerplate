@@ -88,8 +88,20 @@ object YtDlp {
         channel: YoutubeDL.UpdateChannel = YoutubeDL.UpdateChannel._STABLE
     ): YoutubeDL.UpdateStatus? = withContext(Dispatchers.IO) {
         ensureInitialized(context)
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putLong(KEY_LAST_UPDATE_ATTEMPT, System.currentTimeMillis()).apply()
         YoutubeDL.getInstance().updateYoutubeDL(context.applicationContext, channel)
     }
+
+    /** Whether an automatic update is worth trying: none attempted in the last hour. */
+    fun updateIsDue(context: Context): Boolean {
+        val last = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(KEY_LAST_UPDATE_ATTEMPT, 0L)
+        return System.currentTimeMillis() - last > 60 * 60_000L
+    }
+
+    private const val PREFS = "extras_importer"
+    private const val KEY_LAST_UPDATE_ATTEMPT = "ytdlp_last_update_attempt"
 
     /** Cancels a running yt-dlp process previously started with [processId]. */
     fun cancel(processId: String): Boolean =

@@ -47,9 +47,15 @@ class DownloadErrorTest {
         val message = humanize(
             "ERROR: [youtube] abc: Sign in to confirm you're not a bot. Use --cookies-from-browser"
         )
-        assertTrue(message.contains("not a bot"))
+        // The fix is cookies from the menu; say so, and say it is the network.
+        assertTrue(message.contains("cookies"))
+        assertTrue(message.contains("bot"))
         // It must not leak yt-dlp flags the user cannot act on from a phone.
         assertTrue(!message.contains("--cookies-from-browser"))
+        assertTrue(DownloadError.isBotCheck("Sign in to confirm you're not a bot"))
+        assertTrue(!DownloadError.isBotCheck("Sign in to confirm your age"))
+        // One yt-dlp update is worth trying before giving up on it.
+        assertTrue(DownloadError.needsUpdate("Sign in to confirm you're not a bot"))
     }
 
     @Test

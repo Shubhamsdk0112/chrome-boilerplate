@@ -93,6 +93,7 @@ internal object JobStore {
             is JobStage.Failed -> {
                 put("stage", "failed")
                 put("message", s.message)
+                put("botCheck", s.botCheck)
             }
             is JobStage.Cancelled -> put("stage", "cancelled")
             // Anything in flight is persisted as queued: on restore it runs
@@ -113,7 +114,10 @@ internal object JobStore {
                 chapters = o.optInt("chapters", 0),
                 episodeGuid = o.optString("doneEpisodeGuid").takeIf { it.isNotBlank() },
             )
-            "failed" -> JobStage.Failed(o.optString("message").ifBlank { "The download failed." })
+            "failed" -> JobStage.Failed(
+                o.optString("message").ifBlank { "The download failed." },
+                botCheck = o.optBoolean("botCheck", false),
+            )
             "cancelled" -> JobStage.Cancelled
             else -> JobStage.Queued
         }

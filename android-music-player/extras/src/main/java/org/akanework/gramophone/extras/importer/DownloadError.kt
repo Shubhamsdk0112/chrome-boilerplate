@@ -32,6 +32,9 @@ object DownloadError {
 
     private data class Rule(val needles: List<String>, val message: String)
 
+    /** YouTube's "Sign in to confirm you're not a bot"; declared first, RULES reads it. */
+    private val BOT_NEEDLES = listOf("not a bot", "confirm you're not a bot", "confirm youre not a bot")
+
     private val RULES = listOf(
         // Ordered deliberately. YouTube phrases both the age gate and the bot
         // check as "Sign in to confirm ...", so the narrower rule goes first
@@ -42,10 +45,10 @@ object DownloadError {
             "That video is age-restricted, which needs a signed-in account.",
         ),
         Rule(
-            listOf("not a bot", "confirm you're not a bot", "confirm youre not a bot"),
-            "YouTube asked this download to prove it is not a bot. Try " +
-                "Update yt-dlp from the menu; if it keeps happening this video " +
-                "needs you to be signed in, which this app cannot do.",
+            BOT_NEEDLES,
+            "YouTube has flagged this network as a bot for now. Add your YouTube " +
+                "cookies from the menu (a spare Google account) and retry, or wait " +
+                "a few hours for the block to lift.",
         ),
         Rule(
             listOf("nsig extraction failed", "unable to extract", "player response",
@@ -120,7 +123,17 @@ object DownloadError {
         "nsig extraction failed", "unable to extract", "player response",
         "signature extraction failed", "forcing sabr", "sabr streaming",
         "formats have been skipped", "older than 90 days", "http error 403",
+        // The bot check is mostly the network's fault, but a yt-dlp that has
+        // fallen behind YouTube's client checks trips it far more often, so
+        // one update is worth a try before giving up.
+        "not a bot",
     )
+
+    /** YouTube's "Sign in to confirm you're not a bot" — the cookies fix. */
+    fun isBotCheck(text: String?): Boolean {
+        val haystack = text?.lowercase().orEmpty()
+        return BOT_NEEDLES.any { haystack.contains(it) }
+    }
 
     /**
      * Whether [text] describes a failure that tends to pass on its own — the

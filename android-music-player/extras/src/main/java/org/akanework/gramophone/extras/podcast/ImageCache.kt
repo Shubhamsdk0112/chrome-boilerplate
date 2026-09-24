@@ -75,7 +75,13 @@ object ImageCache {
 
 /** A cover from a URL, with a placeholder while it loads or when it cannot. */
 @Composable
-fun Cover(url: String?, size: Dp, modifier: Modifier = Modifier, corner: Dp = 10.dp) {
+fun Cover(
+    url: String?,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    corner: Dp = 10.dp,
+    placeholder: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.Podcasts,
+) {
     val context = LocalContext.current
     val file by produceState<File?>(initialValue = null, url) {
         value = url?.let { ImageCache.file(context, it) }
@@ -95,7 +101,7 @@ fun Cover(url: String?, size: Dp, modifier: Modifier = Modifier, corner: Dp = 10
             )
         } else {
             Icon(
-                Icons.Default.Podcasts,
+                placeholder,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxSize(0.45f),

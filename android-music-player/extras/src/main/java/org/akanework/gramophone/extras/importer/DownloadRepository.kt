@@ -151,6 +151,8 @@ data class DownloadJob(
     val attempts: Int = 0,
     /** YouTube jobs: the user asked for a podcast episode regardless of length. */
     val asPodcast: Boolean = false,
+    /** Part of a playlist import (PlaylistImports id); the .m3u is rebuilt when it lands. */
+    val playlistId: String? = null,
 ) {
     val label: String get() = title ?: url
 }
@@ -216,7 +218,14 @@ class DownloadRepository(private val context: Context) {
         }
     }
 
-    fun enqueue(url: String, format: AudioFormat, asPodcast: Boolean = false): String {
+    fun enqueue(
+        url: String,
+        format: AudioFormat,
+        asPodcast: Boolean = false,
+        playlistId: String? = null,
+        title: String? = null,
+        artist: String? = null,
+    ): String {
         val trimmed = url.trim()
         // A link that is already in flight (a double tap on Share, or the
         // YouTube app resending it) must not queue the song twice. A finished
@@ -224,10 +233,38 @@ class DownloadRepository(private val context: Context) {
         _jobs.value.firstOrNull { it.url == trimmed && !it.stage.isTerminal }
             ?.let { return it.id }
         val id = UUID.randomUUID().toString()
-        _jobs.value += DownloadJob(id = id, url = trimmed, format = format, asPodcast = asPodcast)
+        _jobs.value += DownloadJob(
+            id = id, url = trimmed, format = format, asPodcast = asPodcast,
+            playlistId = playlistId, title = title, artist = artist,
+        )
         scheduleSave()
         queue.trySend(id)
         return id
+    }
+
+    /**
+     * Imports a YouTube playlist: one song job per entry, in order, all
+     * pointing at a new playlist file that fills up as they finish. Songs
+     * already in the library are picked up by the normal duplicate check
+     * and join the playlist without downloading again.
+     */
+    suspend fun enqueuePlaylist(
+        name: String,
+        sourceUrl: String,
+        entries: List<YouTubeSearch.Entry>,
+        format: AudioFormat,
+    ): PlaylistImports.Import {
+        val import = PlaylistImports.create(context, name, sourceUrl, entries)
+        entries.forEach { entry ->
+            enqueue(entry.url, format, playlistId = import.id, title = entry.title, artist = entry.channel)
+        }
+        return import
+    }
+
+    /** Several links at once (a pasted list); returns how many were queued. */
+    fun enqueueAll(urls: List<String>, format: AudioFormat): Int {
+        urls.forEach { enqueue(it, format) }
+        return urls.size
     }
 
     /** Queues one podcast episode. Returns the existing job when it is already queued. */
@@ -452,6 +489,12 @@ class DownloadRepository(private val context: Context) {
         } finally {
             // Keep the .part when a retry is pending; yt-dlp resumes from it.
             if (currentStage(jobId) !is JobStage.Retrying) workDir.deleteRecursively()
+            // A playlist import gains a song (new or already in the library).
+            val done = currentStage(jobId) as? JobStage.Done
+            val playlistId = job.playlistId
+            if (playlistId != null && done != null && !done.podcast) {
+                scope.launch { runCatching { PlaylistImports.rebuild(context, playlistId) } }
+            }
         }
     }
 

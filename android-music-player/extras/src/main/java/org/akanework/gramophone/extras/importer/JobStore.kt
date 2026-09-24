@@ -80,6 +80,7 @@ internal object JobStore {
         put("episodeGuid", job.episodeGuid)
         put("attempts", job.attempts)
         put("asPodcast", job.asPodcast)
+        job.playlistId?.let { put("playlistId", it) }
         when (val s = job.stage) {
             is JobStage.Done -> {
                 put("stage", "done")
@@ -136,6 +137,7 @@ internal object JobStore {
             episodeGuid = o.optString("episodeGuid").takeIf { it.isNotBlank() },
             attempts = o.optInt("attempts", 0),
             asPodcast = o.optBoolean("asPodcast", false),
+            playlistId = o.optString("playlistId").ifEmpty { null },
         )
     }
 }

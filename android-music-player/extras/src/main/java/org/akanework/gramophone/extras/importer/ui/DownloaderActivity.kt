@@ -112,6 +112,24 @@ import org.akanework.gramophone.extras.importer.DownloadService
 import org.akanework.gramophone.extras.importer.JobStage
 import org.akanework.gramophone.extras.importer.Pacing
 import org.akanework.gramophone.extras.importer.YtDlp
+import org.akanework.gramophone.extras.importer.ImportIndex
+import org.akanework.gramophone.extras.importer.PlaylistImports
+import org.akanework.gramophone.extras.importer.YouTubeLink
+import org.akanework.gramophone.extras.importer.YouTubeLinks
+import org.akanework.gramophone.extras.importer.YouTubeSearch
+import org.akanework.gramophone.extras.podcast.Cover
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.produceState
 import org.akanework.gramophone.extras.podcast.PodcastPlayer
 import org.akanework.gramophone.extras.ui.ExtrasTheme
 
@@ -160,7 +178,9 @@ class DownloaderActivity : ComponentActivity() {
     private fun extractUrl(intent: Intent?): String? {
         if (intent?.action != Intent.ACTION_SEND) return null
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
-        return Regex("""https?://\S+""").find(text)?.value
+        // The links, if any (the YouTube app sends just one); otherwise the
+        // text itself, which the screen treats as a search.
+        return YouTubeLinks.extractUrls(text).joinToString("\n").ifEmpty { text.trim().ifEmpty { null } }
     }
 }
 
@@ -196,11 +216,91 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
     val notificationPermission = rememberLauncherForNotifications()
     LaunchedEffect(Unit) { notificationPermission() }
 
+    var results by remember { mutableStateOf<List<YouTubeSearch.Entry>?>(null) }
+    var resultsFor by rememberSaveable { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
+    var searchError by remember { mutableStateOf<String?>(null) }
+    var inLibrary by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var playlist by remember { mutableStateOf<PlaylistState?>(null) }
+
+    fun runSearch(query: String) {
+        searching = true
+        searchError = null
+        resultsFor = query.trim()
+        scope.launch {
+            runCatching {
+                YtDlp.ensureInitialized(context)
+                val cookies = withContext(Dispatchers.IO) { Cookies.path(context) }
+                YouTubeSearch.search(query, limit = 20, cookiesPath = cookies)
+            }.onSuccess { list ->
+                results = list
+                inLibrary = withContext(Dispatchers.IO) {
+                    list.filter { ImportIndex.find(context, it.videoId) != null }.map { it.videoId }.toSet()
+                }
+            }.onFailure { searchError = it.message ?: it::class.java.simpleName }
+            searching = false
+        }
+    }
+
+    fun openPlaylist(link: String) {
+        playlist = PlaylistState.Loading(link)
+        scope.launch {
+            runCatching {
+                YtDlp.ensureInitialized(context)
+                val cookies = withContext(Dispatchers.IO) { Cookies.path(context) }
+                YouTubeSearch.playlist(link, cookies)
+            }.onSuccess { info ->
+                val have = withContext(Dispatchers.IO) {
+                    info.entries.count { ImportIndex.find(context, it.videoId) != null }
+                }
+                if ((playlist as? PlaylistState.Loading)?.url == link) {
+                    playlist = PlaylistState.Ready(link, info, have)
+                }
+            }.onFailure {
+                if (playlist != null) playlist = PlaylistState.Failed(link, it.message ?: it::class.java.simpleName)
+            }
+        }
+    }
+
+    /**
+     * One box for everything: words search, one link downloads, several
+     * links download each, a playlist opens a preview, a song opened from
+     * a playlist downloads the song and offers the playlist.
+     */
     fun submit(target: String) {
-        val trimmed = target.trim()
-        if (trimmed.isBlank()) return
-        repository.enqueue(trimmed, format)
-        DownloadService.ensureRunning(context)
+        val text = target.trim()
+        if (text.isBlank()) return
+        val links = YouTubeLinks.extractUrls(text)
+        when {
+            links.isEmpty() -> {
+                runSearch(text)
+                return
+            }
+            links.size > 1 -> {
+                repository.enqueueAll(links, format)
+                DownloadService.ensureRunning(context)
+                scope.launch { snackbars.showSnackbar(context.getString(R.string.ytdlp_added_links, links.size)) }
+            }
+            else -> when (val link = YouTubeLinks.classify(links[0])) {
+                is YouTubeLink.Playlist -> openPlaylist(link.url)
+                is YouTubeLink.VideoInPlaylist -> {
+                    repository.enqueue(link.videoUrl, format)
+                    DownloadService.ensureRunning(context)
+                    scope.launch {
+                        val result = snackbars.showSnackbar(
+                            message = context.getString(R.string.ytdlp_part_of_playlist),
+                            actionLabel = context.getString(R.string.ytdlp_import_playlist_action),
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) openPlaylist(link.playlistUrl)
+                    }
+                }
+                else -> {
+                    repository.enqueue(link.url, format)
+                    DownloadService.ensureRunning(context)
+                }
+            }
+        }
         url = ""
     }
 
@@ -309,6 +409,21 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             )
         },
     ) { insets ->
+        playlist?.let { state ->
+            PlaylistDialog(
+                state = state,
+                pacing = pacing,
+                onImport = { name, info ->
+                    playlist = null
+                    scope.launch {
+                        repository.enqueuePlaylist(name, state.url, info.entries, format)
+                        DownloadService.ensureRunning(context)
+                        snackbars.showSnackbar(context.getString(R.string.ytdlp_playlist_started, name))
+                    }
+                },
+                onDismiss = { playlist = null },
+            )
+        }
         if (cookiesOpen) {
             CookiesDialog(
                 onSaved = { _ ->
@@ -354,6 +469,7 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                     onValueChange = { url = it },
                     label = { Text(stringResource(R.string.ytdlp_url_hint)) },
                     singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
                         IconButton(onClick = { pasteFromClipboard() }) {
                             Icon(
@@ -389,14 +505,99 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             item {
                 Button(
                     onClick = { submit(url) },
-                    enabled = url.isNotBlank(),
+                    enabled = url.isNotBlank() && !searching,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(stringResource(R.string.ytdlp_add))
+                    Text(
+                        stringResource(
+                            if (YouTubeLinks.isSearch(url)) R.string.ytdlp_search else R.string.ytdlp_add
+                        )
+                    )
                 }
             }
 
-            if (restored && jobs.isEmpty()) {
+            if (searching || results != null || searchError != null) {
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.ytdlp_results_for, resultsFor),
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { results = null; searchError = null }) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ytdlp_clear_results))
+                        }
+                    }
+                }
+                if (searching) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            if (results == null) {
+                                Text(
+                                    stringResource(R.string.ytdlp_searching_first),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+                searchError?.let { message ->
+                    item {
+                        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                results?.let { list ->
+                    if (list.isEmpty() && !searching) {
+                        item { Text(stringResource(R.string.ytdlp_no_results), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    items(list, key = { "result-" + it.videoId }) { entry ->
+                        val queued = jobs.any { !it.stage.isTerminal && (it.videoId == entry.videoId || it.url.contains(entry.videoId)) }
+                        val done = entry.videoId in inLibrary || jobs.any {
+                            (it.videoId == entry.videoId || it.url.contains(entry.videoId)) && it.stage is JobStage.Done
+                        }
+                        SearchResultRow(
+                            entry = entry,
+                            queued = queued,
+                            done = done,
+                            toPodcasts = longToPodcasts && entry.durationSeconds >= 600,
+                            onAdd = {
+                                repository.enqueue(entry.url, format, title = entry.title, artist = entry.channel)
+                                DownloadService.ensureRunning(context)
+                            },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                }
+            }
+
+            // Playlist imports in flight, one line each.
+            val importing = jobs.mapNotNull { it.playlistId }.distinct()
+            if (importing.isNotEmpty()) {
+                items(importing, key = { "playlist-$it" }) { id ->
+                    val name by produceState<String?>(null, id) {
+                        value = withContext(Dispatchers.IO) { PlaylistImports.find(context, id)?.name }
+                    }
+                    val mine = jobs.filter { it.playlistId == id }
+                    val landed = mine.count { it.stage is JobStage.Done }
+                    if (mine.any { !it.stage.isTerminal }) {
+                        Text(
+                            stringResource(R.string.ytdlp_playlist_progress, name ?: "…", landed, mine.size),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            }
+
+            if (restored && jobs.isEmpty() && results == null && !searching && searchError == null) {
                 item {
                     Text(
                         text = stringResource(R.string.ytdlp_empty),
@@ -442,6 +643,166 @@ private fun pacingLabel(p: Pacing): String = stringResource(
         Pacing.CAUTIOUS -> R.string.ytdlp_pacing_cautious
     },
 )
+
+private sealed interface PlaylistState {
+    val url: String
+
+    data class Loading(override val url: String) : PlaylistState
+    data class Ready(override val url: String, val info: YouTubeSearch.PlaylistInfo, val inLibrary: Int) : PlaylistState
+    data class Failed(override val url: String, val message: String) : PlaylistState
+}
+
+@Composable
+private fun SearchResultRow(
+    entry: YouTubeSearch.Entry,
+    queued: Boolean,
+    done: Boolean,
+    toPodcasts: Boolean,
+    onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(enabled = !queued && !done, onClick = onAdd)
+            .padding(vertical = 4.dp),
+    ) {
+        Box(modifier = Modifier.width(120.dp).aspectRatio(16f / 9f)) {
+            Cover(
+                url = entry.thumbnailUrl,
+                size = 120.dp,
+                modifier = Modifier.fillMaxSize(),
+                corner = 8.dp,
+                placeholder = Icons.Default.MusicNote,
+            )
+            val length = YouTubeSearch.formatDuration(entry.durationSeconds)
+            if (length.isNotEmpty()) {
+                Text(
+                    text = length,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(entry.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val sub = listOfNotNull(entry.channel, YouTubeSearch.formatViews(entry.views)).joinToString(" · ")
+            if (sub.isNotEmpty()) {
+                Text(
+                    sub,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            when {
+                done -> Text(stringResource(R.string.ytdlp_in_library), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                toPodcasts -> Text(stringResource(R.string.ytdlp_to_podcasts), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            when {
+                done -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                queued -> CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                else -> IconButton(onClick = onAdd) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.ytdlp_add))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistDialog(
+    state: PlaylistState,
+    pacing: Pacing,
+    onImport: (String, YouTubeSearch.PlaylistInfo) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    when (state) {
+        is PlaylistState.Loading -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.ytdlp_playlist_reading)) },
+            text = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
+        )
+        is PlaylistState.Failed -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.ytdlp_playlist_failed)) },
+            text = { Text(state.message) },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } },
+        )
+        is PlaylistState.Ready -> {
+            var name by rememberSaveable(state.url) { mutableStateOf(state.info.title) }
+            val entries = state.info.entries
+            val toFetch = (entries.size - state.inLibrary).coerceAtLeast(0)
+            // Pacing gap plus roughly twenty seconds of actual download each.
+            val minutes = ((toFetch * ((pacing.minGapSeconds + pacing.maxGapSeconds) / 2 + 20)) / 60).coerceAtLeast(1)
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.ytdlp_playlist_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (entries.isEmpty()) {
+                            Text(stringResource(R.string.ytdlp_playlist_empty))
+                            return@Column
+                        }
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.ytdlp_playlist_name)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            stringResource(R.string.ytdlp_playlist_summary, entries.size, state.inLibrary),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            stringResource(R.string.ytdlp_playlist_estimate, minutes, pacingLabel(pacing)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            entries.forEachIndexed { i, e ->
+                                Text(
+                                    "${i + 1}. ${e.title}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (entries.isNotEmpty()) {
+                        TextButton(onClick = { onImport(name.trim().ifEmpty { state.info.title }, state.info) }) {
+                            Text(stringResource(R.string.ytdlp_playlist_import, entries.size))
+                        }
+                    }
+                },
+                dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
+            )
+        }
+    }
+}
 
 /**
  * Paste or pick a browser cookie export; see [Cookies] for why. Reads and

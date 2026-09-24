@@ -2,9 +2,29 @@
 <resources>
     <!-- Importer screen -->
     <string name="ytdlp_title">Add from YouTube</string>
-    <string name="ytdlp_url_hint">YouTube link</string>
+    <string name="ytdlp_url_hint">Search YouTube or paste a link</string>
+    <string name="ytdlp_search">Search</string>
+    <string name="ytdlp_results_for">Results for “%1$s”</string>
+    <string name="ytdlp_searching_first">Searching… the first search unpacks the yt-dlp runtime, give it a moment.</string>
+    <string name="ytdlp_no_results">Nothing found.</string>
+    <string name="ytdlp_clear_results">Clear results</string>
+    <string name="ytdlp_in_library">In your library</string>
+    <string name="ytdlp_to_podcasts">Goes to Podcasts</string>
+    <string name="ytdlp_added_links">Added %1$d links</string>
+    <string name="ytdlp_part_of_playlist">Downloading this song. It is part of a playlist.</string>
+    <string name="ytdlp_import_playlist_action">Import playlist</string>
+    <string name="ytdlp_playlist_reading">Reading playlist…</string>
+    <string name="ytdlp_playlist_failed">Could not read that playlist</string>
+    <string name="ytdlp_playlist_title">Import playlist</string>
+    <string name="ytdlp_playlist_name">Playlist name</string>
+    <string name="ytdlp_playlist_summary">%1$d songs · %2$d already in your library</string>
+    <string name="ytdlp_playlist_estimate">About %1$d min with %2$s pacing. Every song becomes its own tagged file, and the playlist fills up under Playlists as they land.</string>
+    <string name="ytdlp_playlist_empty">That playlist has no songs that can be downloaded (private or deleted videos are skipped).</string>
+    <string name="ytdlp_playlist_import">Import %1$d songs</string>
+    <string name="ytdlp_playlist_started">Importing “%1$s” — it fills up under Playlists as songs finish</string>
+    <string name="ytdlp_playlist_progress">Playlist “%1$s”: %2$d of %3$d added</string>
     <string name="ytdlp_add">Add to library</string>
-    <string name="ytdlp_empty">Paste a link above, or share a video from the YouTube app to Gramophone.\n\nThe first download unpacks the yt-dlp runtime and takes a moment longer than the rest.</string>
+    <string name="ytdlp_empty">Search for a song, paste a link, a playlist, or several links at once — or share a video from the YouTube app to Gramophone.\n\nThe first download unpacks the yt-dlp runtime and takes a moment longer than the rest.</string>
     <string name="ytdlp_clear_finished">Clear finished</string>
 
     <!-- Stages -->

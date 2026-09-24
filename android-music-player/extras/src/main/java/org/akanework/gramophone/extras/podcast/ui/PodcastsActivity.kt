@@ -76,6 +76,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -97,6 +98,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
+import org.akanework.gramophone.extras.podcast.PodcastRefresher
+import android.text.format.Formatter
+import android.view.HapticFeedbackConstants
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.produceState
 import org.akanework.gramophone.extras.importer.AudioFormat
 import org.akanework.gramophone.extras.importer.DownloadRepository
 import org.akanework.gramophone.extras.importer.DownloadService
@@ -204,16 +210,21 @@ private fun ShowsScreen(onOpen: (Podcast) -> Unit) {
         if (refreshing) return
         refreshing = true
         scope.launch {
-            var failed = 0
-            for (p in podcasts) {
-                runCatching { PodcastSearch.fetchFeed(p.feedUrl) }
-                    .onSuccess { store.subscribe(it) }
-                    .onFailure { failed++ }
-            }
+            val failed = PodcastRefresher.refresh(context)
             refreshing = false
             if (failed > 0) snackbars.showSnackbar(context.getString(R.string.podcast_refresh_failed, failed))
         }
     }
+    // Quietly bring stale shows (and channel avatars) up to date on open.
+    LaunchedEffect(Unit) { PodcastRefresher.refreshIfStale(context) }
+
+    val downloads by store.downloads.collectAsStateWithLifecycle()
+    val positions by store.positions.collectAsStateWithLifecycle()
+    var statsTick by remember { mutableStateOf(0) }
+    val stats by produceState<PodcastStore.StorageStats?>(null, downloads, positions, statsTick) {
+        value = store.storageStats()
+    }
+    var cleanupOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbars) },
@@ -320,7 +331,48 @@ private fun ShowsScreen(onOpen: (Podcast) -> Unit) {
                     item { SectionTitle(stringResource(R.string.podcast_local), show.episodes.size) }
                     item { ShowRow(show, onClick = { onOpen(show) }) }
                 }
+                stats?.takeIf { it.count > 0 }?.let { s ->
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                pluralStringResource(R.plurals.podcast_storage, s.count, Formatter.formatShortFileSize(context, s.bytes), s.count),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (s.finishedCount > 0) {
+                                TextButton(onClick = { cleanupOpen = true }) {
+                                    Text(stringResource(R.string.podcast_cleanup, Formatter.formatShortFileSize(context, s.finishedBytes)))
+                                }
+                            }
+                        }
+                    }
+                }
             }
+        }
+        val s = stats
+        if (cleanupOpen && s != null) {
+            AlertDialog(
+                onDismissRequest = { cleanupOpen = false },
+                title = { Text(stringResource(R.string.podcast_cleanup_title)) },
+                text = {
+                    Text(stringResource(R.string.podcast_cleanup_body, s.finishedCount, Formatter.formatShortFileSize(context, s.finishedBytes)))
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        cleanupOpen = false
+                        scope.launch {
+                            val freed = store.deleteFinishedDownloads()
+                            statsTick++
+                            snackbars.showSnackbar(context.getString(R.string.podcast_cleanup_done, Formatter.formatShortFileSize(context, freed)))
+                        }
+                    }) { Text(stringResource(R.string.podcast_delete_download)) }
+                },
+                dismissButton = { TextButton(onClick = { cleanupOpen = false }) { Text(stringResource(android.R.string.cancel)) } },
+            )
         }
     }
 }
@@ -489,7 +541,6 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                         scope.launch {
                             store.downloadedFile(episode.guid)?.delete()
                             store.forgetDownload(episode.guid)
-                            if (episode.source == EpisodeSource.YOUTUBE) store.removeEpisode(podcast.feedUrl, episode.guid)
                         }
                     },
                 )
@@ -515,6 +566,7 @@ private fun EpisodeRow(
     else CardDefaults.cardColors()
     val canPlay = downloaded || episode.streamable
     var chaptersOpen by rememberSaveable(episode.guid) { mutableStateOf(false) }
+    val view = LocalView.current
     Card(modifier = Modifier.fillMaxWidth(), colors = colors, onClick = { if (canPlay) onPlay(null) else onDownload() }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(episode.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -586,7 +638,10 @@ private fun EpisodeRow(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = canPlay) { onPlay(chapter.startMs) }
+                            .clickable(enabled = canPlay) {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                onPlay(chapter.startMs)
+                            }
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -631,6 +686,9 @@ private fun NowPlayingBar() {
     var position by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
     val chapter = episode?.chapterAt(position)
+    val speed by PodcastPlayer.speed.collectAsStateWithLifecycle()
+    val view = LocalView.current
+    fun tick() { view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK) }
 
     LaunchedEffect(current, playing) {
         while (current != null) {
@@ -665,18 +723,29 @@ private fun NowPlayingBar() {
                         )
                     }
                     val hasChapters = !episode?.chapters.isNullOrEmpty()
+                    TextButton(
+                        onClick = { tick(); PodcastPlayer.cycleSpeed(context) },
+                        contentPadding = PaddingValues(horizontal = 6.dp),
+                        modifier = Modifier.height(40.dp),
+                    ) {
+                        Text(
+                            formatSpeed(speed),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (speed != 1f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                     if (hasChapters) {
-                        IconButton(onClick = { PodcastPlayer.skipChapter(forward = false) }, modifier = Modifier.size(40.dp)) {
+                        IconButton(onClick = { tick(); PodcastPlayer.skipChapter(forward = false) }, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Default.SkipPrevious, contentDescription = null)
                         }
                     }
-                    IconButton(onClick = { PodcastPlayer.seekBy(-10_000) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Replay10, contentDescription = null) }
+                    IconButton(onClick = { tick(); PodcastPlayer.seekBy(-10_000) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Replay10, contentDescription = null) }
                     IconButton(onClick = { PodcastPlayer.togglePlayPause() }, modifier = Modifier.size(40.dp)) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = null)
                     }
-                    IconButton(onClick = { PodcastPlayer.seekBy(30_000) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Forward30, contentDescription = null) }
+                    IconButton(onClick = { tick(); PodcastPlayer.seekBy(30_000) }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Forward30, contentDescription = null) }
                     if (hasChapters) {
-                        IconButton(onClick = { PodcastPlayer.skipChapter(forward = true) }, modifier = Modifier.size(40.dp)) {
+                        IconButton(onClick = { tick(); PodcastPlayer.skipChapter(forward = true) }, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Default.SkipNext, contentDescription = null)
                         }
                     }
@@ -685,6 +754,9 @@ private fun NowPlayingBar() {
         }
     }
 }
+
+private fun formatSpeed(speed: Float): String =
+    (if (speed % 1f == 0f) speed.toInt().toString() else speed.toString().trimEnd('0')) + "×"
 
 private fun isYouTube(text: String): Boolean {
     val t = text.lowercase()

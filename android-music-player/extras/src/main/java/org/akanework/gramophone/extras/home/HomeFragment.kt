@@ -97,6 +97,7 @@ import org.akanework.gramophone.extras.podcast.Episode
 import org.akanework.gramophone.extras.podcast.Podcast
 import org.akanework.gramophone.extras.podcast.PodcastPlayer
 import org.akanework.gramophone.extras.podcast.PodcastStore
+import org.akanework.gramophone.extras.podcast.PodcastRefresher
 import org.akanework.gramophone.extras.podcast.ui.PodcastsActivity
 import org.akanework.gramophone.extras.ui.ExtrasTheme
 import org.akanework.gramophone.extras.ui.VerticalScrollReporter
@@ -153,7 +154,12 @@ private fun HomeScreen(listState: LazyListState) {
     var tick by remember { mutableIntStateOf(0) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) tick++ }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                tick++
+                PodcastRefresher.refreshIfStale(context)
+            }
+        }
         lifecycle.addObserver(observer)
         val handler = Handler(Looper.getMainLooper())
         val bump = Runnable { tick++ }

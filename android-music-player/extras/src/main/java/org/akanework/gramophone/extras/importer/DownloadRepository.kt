@@ -560,6 +560,13 @@ class DownloadRepository(private val context: Context) {
         store.upsertEpisode(show, episode)
         store.recordDownload(episode.guid, target)
         ImportIndex.record(context, meta.videoId, Uri.fromFile(target))
+        // A channel seen for the first time gets its avatar and its latest
+        // uploads (listed, not downloaded) in the background.
+        store.podcast(feedUrl)?.takeIf {
+            org.akanework.gramophone.extras.podcast.YouTubeChannels.needsAvatar(it.imageUrl)
+        }?.let { fresh ->
+            scope.launch { runCatching { org.akanework.gramophone.extras.podcast.YouTubeChannels.refresh(context, fresh) } }
+        }
         update(jobId) {
             it.copy(
                 title = episode.title,

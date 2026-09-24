@@ -112,7 +112,7 @@
     </plurals>
     <string name="podcast_show_chapters">Chapters</string>
     <string name="podcast_hide_chapters">Hide chapters</string>
-    <string name="podcast_needs_download">Not on this phone any more — download it again to play</string>
+    <string name="podcast_needs_download">Download to listen — YouTube episodes play from the phone</string>
     <string name="podcast_results">Results</string>
     <string name="podcast_following">Following</string>
     <string name="podcast_follow">Follow</string>
@@ -123,6 +123,15 @@
     <string name="podcast_refresh">Refresh</string>
     <string name="podcast_refresh_failed">%1$d feed(s) could not be refreshed</string>
     <string name="podcast_empty">Search for a show, paste a YouTube link to save a long video here with its chapters, or paste an RSS link to follow a podcast.\n\nEpisodes can be streamed or downloaded. Your place in each one is remembered.</string>
+    <plurals name="podcast_storage">
+        <item quantity="one">Downloads: %1$s in %2$d episode</item>
+        <item quantity="other">Downloads: %1$s in %2$d episodes</item>
+    </plurals>
+    <string name="podcast_cleanup">Delete finished (%1$s)</string>
+    <string name="podcast_cleanup_title">Delete finished episodes?</string>
+    <string name="podcast_cleanup_body">%1$d episodes you listened to the end take %2$s. Podcast episodes stay listed and can still stream; YouTube ones can be downloaded again.</string>
+    <string name="podcast_cleanup_done">Freed %1$s</string>
+    <string name="podcast_speed">Playback speed</string>
     <plurals name="podcast_episode_count">
         <item quantity="one">%1$d episode</item>
         <item quantity="other">%1$d episodes</item>

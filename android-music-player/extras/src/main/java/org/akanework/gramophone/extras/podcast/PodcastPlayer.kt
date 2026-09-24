@@ -67,6 +67,36 @@ object PodcastPlayer {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    /** Podcast playback speed, remembered separately from music (which stays at 1×). */
+    val SPEEDS = listOf(1f, 1.25f, 1.5f, 1.75f, 2f, 0.8f)
+    private val _speed = MutableStateFlow(1f)
+    val speed: StateFlow<Float> = _speed.asStateFlow()
+    private var speedLoaded = false
+    /** We changed the player's speed for an episode and owe music a reset to 1×. */
+    private var speedIsOurs = false
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences("extras_podcasts", Context.MODE_PRIVATE)
+
+    private suspend fun loadSpeed(app: Context) {
+        if (speedLoaded) return
+        _speed.value = withContext(Dispatchers.IO) { prefs(app).getFloat("speed", 1f) }
+        speedLoaded = true
+    }
+
+    /** Next speed in [SPEEDS]; applied now if an episode is playing. */
+    fun cycleSpeed(context: Context) {
+        val app = context.applicationContext
+        val next = SPEEDS[(SPEEDS.indexOf(_speed.value).coerceAtLeast(0) + 1) % SPEEDS.size]
+        _speed.value = next
+        scope.launch(Dispatchers.IO) { prefs(app).edit().putFloat("speed", next).apply() }
+        val c = controller ?: return
+        if (c.currentMediaItem?.mediaId?.startsWith(ID_PREFIX) == true) {
+            c.setPlaybackSpeed(next)
+            speedIsOurs = next != 1f
+        }
+    }
+
     /** The episode object behind [current], for chapter lookups. */
     private val _currentEpisode = MutableStateFlow<Episode?>(null)
     val currentEpisode: StateFlow<Episode?> = _currentEpisode.asStateFlow()
@@ -112,8 +142,19 @@ object PodcastPlayer {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            _current.value = mediaItem?.mediaId?.removePrefix(ID_PREFIX)?.takeIf {
-                mediaItem.mediaId.startsWith(ID_PREFIX)
+            val isEpisode = mediaItem?.mediaId?.startsWith(ID_PREFIX) == true
+            _current.value = mediaItem?.mediaId?.removePrefix(ID_PREFIX)?.takeIf { isEpisode }
+            // Speed follows the item: episodes get the podcast speed, and a
+            // song after an episode goes back to normal — but only if it was
+            // us who changed it, so a speed set in the full player for music
+            // is left alone.
+            val c = controller ?: return
+            if (isEpisode && _speed.value != 1f) {
+                c.setPlaybackSpeed(_speed.value)
+                speedIsOurs = true
+            } else if (!isEpisode && speedIsOurs) {
+                c.setPlaybackSpeed(1f)
+                speedIsOurs = false
             }
         }
     }
@@ -159,6 +200,9 @@ object PodcastPlayer {
             _currentEpisode.value = episode
             c.setMediaItem(item, position)
             c.prepare()
+            loadSpeed(app)
+            c.setPlaybackSpeed(_speed.value)
+            speedIsOurs = _speed.value != 1f
             c.play()
             startTracking(app)
         }

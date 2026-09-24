@@ -152,6 +152,40 @@ class PodcastStore private constructor(private val context: Context) {
         persist()
     }
 
+    data class StorageStats(val bytes: Long, val count: Int, val finishedBytes: Long, val finishedCount: Int)
+
+    /** What downloaded episodes take on disk, and how much of it is already listened to. */
+    suspend fun storageStats(): StorageStats = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        var bytes = 0L; var count = 0; var finishedBytes = 0L; var finishedCount = 0
+        for ((guid, path) in _downloads.value) {
+            val size = File(path).takeIf { it.isFile }?.length() ?: continue
+            bytes += size; count++
+            val episode = episode(guid)
+            if (episode != null && isFinished(episode)) { finishedBytes += size; finishedCount++ }
+        }
+        StorageStats(bytes, count, finishedBytes, finishedCount)
+    }
+
+    /**
+     * Deletes the files of episodes that were listened to the end. RSS
+     * episodes stay listed (they can stream); YouTube ones stay listed with
+     * a Download button. Returns the bytes freed.
+     */
+    suspend fun deleteFinishedDownloads(): Long = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        var freed = 0L
+        for ((guid, path) in _downloads.value) {
+            val episode = episode(guid) ?: continue
+            if (!isFinished(episode)) continue
+            val file = File(path)
+            val size = file.length()
+            if (!file.exists() || file.delete()) {
+                freed += size
+                forgetDownload(guid)
+            }
+        }
+        freed
+    }
+
     /** Listened to the end, or close enough that nobody resumes the last half minute. */
     fun isFinished(episode: Episode): Boolean {
         val duration = episode.durationSeconds * 1000L

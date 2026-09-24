@@ -93,6 +93,15 @@
 
     <!-- Notification -->
     <string name="ytdlp_notification_title">Importing music</string>
+    <string name="ytdlp_notification_count">Adding %1$d of %2$d</string>
+    <string name="ytdlp_notification_next">Next: %1$s</string>
+    <string name="ytdlp_notification_cancel_all">Cancel all</string>
+    <string name="ytdlp_notification_done_channel">Finished imports</string>
+    <string name="ytdlp_notification_done_one">Added “%1$s”</string>
+    <string name="ytdlp_notification_done_one_podcast">Saved “%1$s” to Podcasts</string>
+    <string name="ytdlp_notification_done_many">Added %1$d of %2$d</string>
+    <string name="ytdlp_notification_done_failed">%1$d could not be downloaded — tap to see why</string>
+    <string name="ytdlp_notification_done_all">Tap to open</string>
     <string name="ytdlp_notification_channel">Music import</string>
 
     <!-- Settings entry, referenced from the app module -->
@@ -251,8 +260,6 @@
     <string name="app_auto_backup_summary">So an uninstall does not lose it all: reinstall, Restore, pick extras-backup.json</string>
     <string name="app_auto_backup_last">Last copy %1$s</string>
     <string name="app_restore_title">Restore this backup?</string>
-    <string name="app_restore_body">Made %1$s. Followed shows: %2$d. Songs in listening history: %3$d.
-
-It replaces what is here now, and the app restarts.</string>
+    <string name="app_restore_body">Made %1$s. Followed shows: %2$d. Songs in listening history: %3$d.\n\nIt replaces what is here now, and the app restarts.</string>
     <string name="app_restore_confirm">Restore and restart</string>
 </resources>

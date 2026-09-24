@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Importer screen -->
+    <string name="ytdlp_title">Add from YouTube</string>
+    <string name="ytdlp_url_hint">Search YouTube or paste a link</string>
+    <string name="ytdlp_search">Search</string>
+    <string name="ytdlp_results_for">Results for “%1$s”</string>
+    <string name="ytdlp_searching_first">Searching… the first search unpacks the yt-dlp runtime, give it a moment.</string>
+    <string name="ytdlp_no_results">Nothing found.</string>
+    <string name="ytdlp_clear_results">Clear results</string>
+    <string name="ytdlp_in_library">In your library</string>
+    <string name="ytdlp_to_podcasts">Goes to Podcasts</string>
+    <string name="ytdlp_added_links">Added %1$d links</string>
+    <string name="ytdlp_part_of_playlist">Downloading this song. It is part of a playlist.</string>
+    <string name="ytdlp_import_playlist_action">Import playlist</string>
+    <string name="ytdlp_playlist_reading">Reading playlist…</string>
+    <string name="ytdlp_playlist_failed">Could not read that playlist</string>
+    <string name="ytdlp_playlist_title">Import playlist</string>
+    <string name="ytdlp_playlist_name">Playlist name</string>
+    <string name="ytdlp_playlist_summary">%1$d songs · %2$d already in your library</string>
+    <string name="ytdlp_playlist_estimate">About %1$d min with %2$s pacing. Every song becomes its own tagged file, and the playlist fills up under Playlists as they land.</string>
+    <string name="ytdlp_playlist_empty">That playlist has no songs that can be downloaded (private or deleted videos are skipped).</string>
+    <string name="ytdlp_playlist_import">Import %1$d songs</string>
+    <string name="ytdlp_playlist_started">Importing “%1$s” — it fills up under Playlists as songs finish</string>
+    <string name="ytdlp_playlist_progress">Playlist “%1$s”: %2$d of %3$d added</string>
+    <string name="ytdlp_add">Add to library</string>
+    <string name="ytdlp_empty">Search for a song, paste a link, a playlist, or several links at once — or share a video from the YouTube app to Gramophone.\n\nThe first download unpacks the yt-dlp runtime and takes a moment longer than the rest.</string>
+    <string name="ytdlp_clear_finished">Clear finished</string>
+
+    <!-- Stages -->
+    <string name="ytdlp_queued">Waiting…</string>
+    <string name="ytdlp_preparing">Preparing…</string>
+    <string name="ytdlp_reading">Reading video info…</string>
+    <string name="ytdlp_downloading">Downloading — %1$d%%</string>
+    <string name="ytdlp_finding_artwork">Looking for album art…</string>
+    <string name="ytdlp_tagging">Writing tags…</string>
+    <string name="ytdlp_importing">Adding to library…</string>
+    <string name="ytdlp_done">Added to your library</string>
+    <string name="ytdlp_done_with_art">Added to your library · art from %1$s</string>
+    <string name="ytdlp_already_imported">Already in your library</string>
+    <string name="ytdlp_cancelled">Cancelled</string>
+    <string name="ytdlp_progress_eta">%1$d%% · %2$s left</string>
+    <string name="ytdlp_progress_only">%1$d%%</string>
+    <string name="ytdlp_section_active">In progress</string>
+    <string name="ytdlp_section_done">Finished</string>
+    <string name="ytdlp_retry">Retry</string>
+    <string name="ytdlp_cancel">Cancel</string>
+    <string name="ytdlp_play">Play</string>
+    <string name="ytdlp_paste">Paste link</string>
+    <string name="ytdlp_retrying">Retrying in %1$d s (try %2$d of 3)…</string>
+    <string name="ytdlp_retry_all">Retry all failed</string>
+    <string name="ytdlp_pacing">Waiting %1$d s before the next download…</string>
+    <string name="ytdlp_pacing_menu">Download pacing: %1$s</string>
+    <string name="ytdlp_pacing_title">Download pacing</string>
+    <string name="ytdlp_pacing_explainer">A random pause between YouTube downloads, so a batch does not look like a bot to YouTube. Slower, but it keeps this phone off their rate limits.</string>
+    <string name="ytdlp_pacing_off">Off</string>
+    <string name="ytdlp_pacing_quick">Quick</string>
+    <string name="ytdlp_pacing_safe">Safe (recommended)</string>
+    <string name="ytdlp_pacing_cautious">Cautious</string>
+    <string name="ytdlp_pacing_off_detail">No pauses. Fine for one or two songs.</string>
+    <string name="ytdlp_pacing_detail">%1$d–%2$d seconds between songs</string>
+    <string name="ytdlp_long_to_podcasts">Videos over 10 min go to Podcasts</string>
+    <string name="ytdlp_done_podcast">Saved to Podcasts</string>
+    <plurals name="ytdlp_done_podcast_chapters">
+        <item quantity="one">Saved to Podcasts · %1$d chapter</item>
+        <item quantity="other">Saved to Podcasts · %1$d chapters</item>
+    </plurals>
+    <string name="ytdlp_nothing_to_paste">Nothing on the clipboard looks like a link</string>
+
+    <!-- yt-dlp maintenance -->
+    <string name="ytdlp_update">Update yt-dlp</string>
+    <string name="ytdlp_cookies_menu">YouTube cookies</string>
+    <string name="ytdlp_cookies_title">YouTube cookies</string>
+    <string name="ytdlp_cookies_explainer">When YouTube flags your network as a bot, a signed-in session still gets through. In a browser signed in to a spare Google account, export the cookies while on youtube.com (the Cookie-Editor extension\'s JSON export, or a Netscape cookies.txt), then paste the text here or pick the file. Every download is tied to that account, so not your main one.</string>
+    <string name="ytdlp_cookies_none">No cookies saved.</string>
+    <string name="ytdlp_cookies_status">%1$d cookies saved · signed in · valid until %2$s</string>
+    <string name="ytdlp_cookies_status_session">%1$d cookies saved · signed in</string>
+    <string name="ytdlp_cookies_status_anon">%1$d cookies saved, but none of them is a login — export from a browser that is signed in.</string>
+    <string name="ytdlp_cookies_paste_hint">Paste the export here</string>
+    <string name="ytdlp_cookies_pick">Pick file</string>
+    <string name="ytdlp_cookies_remove">Remove</string>
+    <string name="ytdlp_cookies_save">Save</string>
+    <string name="ytdlp_cookies_saved">Cookies saved</string>
+    <plurals name="ytdlp_cookies_saved_retrying">
+        <item quantity="one">Cookies saved · retrying %1$d blocked download</item>
+        <item quantity="other">Cookies saved · retrying %1$d blocked downloads</item>
+    </plurals>
+    <string name="ytdlp_cookies_removed">Cookies removed</string>
+    <string name="ytdlp_cookies_read_failed">Could not read that file</string>
+    <string name="ytdlp_updating">Updating yt-dlp…</string>
+    <string name="ytdlp_updated">yt-dlp is now %1$s</string>
+    <string name="ytdlp_update_failed">Could not update yt-dlp</string>
+
+    <!-- Notification -->
+    <string name="ytdlp_notification_title">Importing music</string>
+    <string name="ytdlp_notification_count">Adding %1$d of %2$d</string>
+    <string name="ytdlp_notification_next">Next: %1$s</string>
+    <string name="ytdlp_notification_cancel_all">Cancel all</string>
+    <string name="ytdlp_notification_done_channel">Finished imports</string>
+    <string name="ytdlp_notification_done_one">Added “%1$s”</string>
+    <string name="ytdlp_notification_done_one_podcast">Saved “%1$s” to Podcasts</string>
+    <string name="ytdlp_notification_done_many">Added %1$d of %2$d</string>
+    <string name="ytdlp_notification_done_failed">%1$d could not be downloaded — tap to see why</string>
+    <string name="ytdlp_notification_done_all">Tap to open</string>
+    <string name="ytdlp_notification_channel">Music import</string>
+
+    <!-- Settings entry, referenced from the app module -->
+    <string name="ytdlp_settings_title">Add from YouTube</string>
+    <string name="ytdlp_settings_summary">Download songs with yt-dlp and add them to your library</string>
+
+    <!-- ============ Podcasts ============ -->
+    <string name="podcast_title">Podcasts</string>
+    <string name="podcast_search_hint">Search shows, or paste a YouTube or RSS link</string>
+    <string name="podcast_youtube_queued">Downloading to Podcasts — with chapters if the video has them</string>
+    <string name="podcast_downloading">Downloading</string>
+    <string name="podcast_preparing">Preparing…</string>
+    <string name="podcast_local">On this phone</string>
+    <plurals name="podcast_chapter_count">
+        <item quantity="one">%1$d chapter</item>
+        <item quantity="other">%1$d chapters</item>
+    </plurals>
+    <string name="podcast_show_chapters">Chapters</string>
+    <string name="podcast_hide_chapters">Hide chapters</string>
+    <string name="podcast_needs_download">Download to listen — YouTube episodes play from the phone</string>
+    <string name="podcast_results">Results</string>
+    <string name="podcast_following">Following</string>
+    <string name="podcast_follow">Follow</string>
+    <string name="podcast_unfollow">Unfollow</string>
+    <string name="podcast_followed">Following %1$s</string>
+    <string name="podcast_feed_failed">Could not load that feed</string>
+    <string name="podcast_no_results">No shows found</string>
+    <string name="podcast_refresh">Refresh</string>
+    <string name="podcast_refresh_failed">%1$d feed(s) could not be refreshed</string>
+    <string name="podcast_empty">Search for a show, paste a YouTube link to save a long video here with its chapters, or paste an RSS link to follow a podcast.\n\nEpisodes can be streamed or downloaded. Your place in each one is remembered.</string>
+    <plurals name="podcast_storage">
+        <item quantity="one">Downloads: %1$s in %2$d episode</item>
+        <item quantity="other">Downloads: %1$s in %2$d episodes</item>
+    </plurals>
+    <string name="podcast_cleanup">Delete finished (%1$s)</string>
+    <string name="podcast_cleanup_title">Delete finished episodes?</string>
+    <string name="podcast_cleanup_body">%1$d episodes you listened to the end take %2$s. Podcast episodes stay listed and can still stream; YouTube ones can be downloaded again.</string>
+    <string name="podcast_cleanup_done">Freed %1$s</string>
+    <string name="podcast_speed">Playback speed</string>
+    <plurals name="podcast_episode_count">
+        <item quantity="one">%1$d episode</item>
+        <item quantity="other">%1$d episodes</item>
+    </plurals>
+    <string name="podcast_play">Play</string>
+    <string name="podcast_resume">Resume</string>
+    <string name="podcast_download">Download</string>
+    <string name="podcast_downloaded">Downloaded</string>
+    <string name="podcast_delete_download">Delete download</string>
+    <string name="podcast_minutes_left">%1$d min left</string>
+    <string name="podcast_settings_title">Podcasts</string>
+    <string name="podcast_settings_summary">Follow shows, download episodes, pick up where you left off</string>
+
+    <!-- ============ Listening history ============ -->
+    <string name="history_title">Listening history</string>
+    <string name="history_recent">Recently played</string>
+    <string name="history_most">Most played</string>
+    <string name="history_empty">Songs you play for at least 30 seconds show up here.</string>
+    <string name="history_play_all">Play all (%1$d)</string>
+    <plurals name="history_plays">
+        <item quantity="one">%1$d play</item>
+        <item quantity="other">%1$d plays</item>
+    </plurals>
+    <string name="history_clear">Clear history</string>
+    <string name="history_settings_title">Listening history</string>
+    <string name="history_settings_summary">Recently played and most played</string>
+
+    <!-- ============ Library filter ============ -->
+    <string name="filter_title">Filter library</string>
+    <string name="filter_explainer">Hides things that are not music — WhatsApp voice notes, call recordings, ringtones, video files — so your library only shows songs.\n\nNothing is ever deleted. Hidden files stay on your phone and you can put any of them back.</string>
+
+    <string name="filter_enable">Hide non-music</string>
+    <string name="filter_enable_summary">Turning this off shows everything again straight away</string>
+
+    <string name="filter_what_to_hide">What counts as junk</string>
+    <string name="filter_voice_notes">Voice notes and recordings</string>
+    <string name="filter_voice_notes_summary">WhatsApp, Telegram, Signal, call and voice recorders</string>
+    <string name="filter_ringtones">Ringtones, alarms and notification sounds</string>
+    <string name="filter_video">Video files</string>
+    <string name="filter_short">Short untagged clips</string>
+    <string name="filter_short_summary">Under 30 seconds with no artist or album. Tagged short tracks are kept.</string>
+    <string name="filter_long_audio">Long audio (10 min and over)</string>
+    <string name="filter_long_audio_summary">Audiobooks, mixes, recorded talks. Still playable under Podcasts › On this phone.</string>
+    <string name="filter_podcasts">Podcasts and audiobooks</string>
+    <string name="filter_podcasts_summary">Off by default — these are real audio, just not songs</string>
+
+    <string name="filter_auto">Keep it clean automatically</string>
+    <string name="filter_auto_summary">Re-check when new audio appears, so new voice notes never pile up. Only new files are looked at.</string>
+
+    <string name="filter_ai">Ask an AI about the leftovers</string>
+    <string name="filter_ai_summary">Only for files the rules above cannot place. Usually a handful.</string>
+    <string name="filter_api_key">OpenRouter API key</string>
+    <string name="filter_api_key_help">Stored only on this device. Get one at openrouter.ai/keys</string>
+    <string name="filter_model">Model</string>
+    <string name="filter_model_help">Any OpenRouter model id. Default: %1$s</string>
+    <string name="filter_privacy">Only filenames, folders, durations and tags are sent. Your audio never leaves the phone.</string>
+
+    <string name="filter_scan">Scan library</string>
+    <string name="filter_scanning">Scanning…</string>
+    <string name="filter_stage_querying">Reading your library…</string>
+    <string name="filter_stage_classifying">Sorting %1$d of %2$d…</string>
+    <string name="filter_stage_ai">Asking the AI about %1$d of %2$d…</string>
+    <string name="filter_stage_saving">Applying…</string>
+
+    <string name="filter_result_hidden">Hid %1$d of %2$d files</string>
+    <string name="filter_result_kept">%1$d kept as music, %2$d left visible because they were unclear</string>
+    <string name="filter_result_ai">The AI settled %1$d of %2$d unclear files</string>
+    <string name="filter_result_deferred">%1$d more were held back to keep the cost down — scan again to continue</string>
+    <string name="filter_unhide_all">Show everything again</string>
+    <string name="filter_review">Hidden files</string>
+    <string name="filter_keep">Keep</string>
+
+    <string name="filter_settings_title">Filter library</string>
+    <string name="filter_settings_summary">Hide voice notes, recordings and other non-music</string>
+
+    <!-- Playback (patched into upstream Behaviour settings) -->
+    <string name="extras_resume_title">Resume after other apps finish playing</string>
+    <string name="extras_resume_summary">When a video or another app takes over the sound, start playing again once it has been quiet for a few seconds. Calls always pause and resume on their own.</string>
+
+    <!-- Home tab -->
+    <string name="home_tab">Home</string>
+    <string name="home_continue">Continue listening</string>
+    <string name="home_recently_added">Recently added</string>
+    <string name="home_most_played">Your most played</string>
+    <string name="home_new_episodes">New episodes</string>
+    <string name="home_add_songs">Add songs</string>
+    <string name="home_podcasts">Podcasts</string>
+    <string name="home_history">History</string>
+    <string name="home_empty_title">Home fills up as you listen</string>
+    <string name="home_empty_body">Songs you play, podcasts you are halfway through, and everything new in your library show up here.</string>
+
+    <!-- Updates & backup -->
+    <string name="app_settings_title">Updates &amp; backup</string>
+    <string name="app_settings_summary">New versions, and a copy of your podcasts, history and settings</string>
+    <string name="app_title">Updates &amp; backup</string>
+    <string name="app_updates">Updates</string>
+    <string name="app_version">You have version %1$s</string>
+    <string name="app_checking">Checking GitHub for a newer version…</string>
+    <string name="app_check_failed">Could not reach GitHub.</string>
+    <string name="app_check_again">Check again</string>
+    <string name="app_up_to_date">You have the latest version.</string>
+    <string name="app_update_available">Version %1$s is available</string>
+    <string name="app_update_tap">Tap to see what is new and download it</string>
+    <string name="app_install_over">Install it over this one — do not uninstall first, or your podcasts and history go with it.</string>
+    <string name="app_download_apk">Download APK</string>
+    <string name="app_release_page">Release page</string>
+    <string name="app_auto_check">Check automatically</string>
+    <string name="app_auto_check_summary">Once a day; a notification when there is something new</string>
+    <string name="app_updates_channel">App updates</string>
+    <string name="app_backup">Backup</string>
+    <string name="app_backup_explainer">Followed podcasts, where you are in each episode, listening history, imported playlists and settings. Songs are files in Music/ and are safe on their own; downloaded episodes and YouTube cookies are not in the backup.</string>
+    <string name="app_backup_now">Back up to a file</string>
+    <string name="app_restore">Restore</string>
+    <string name="app_backup_saved">Backup saved</string>
+    <string name="app_backup_failed">Could not do that</string>
+    <string name="app_auto_backup">Daily backup to Download/Gramophone</string>
+    <string name="app_auto_backup_summary">So an uninstall does not lose it all: reinstall, Restore, pick extras-backup.json</string>
+    <string name="app_auto_backup_last">Last copy %1$s</string>
+    <string name="app_restore_title">Restore this backup?</string>
+    <string name="app_restore_body">Made %1$s. Followed shows: %2$d. Songs in listening history: %3$d.\n\nIt replaces what is here now, and the app restarts.</string>
+    <string name="app_restore_confirm">Restore and restart</string>
+</resources>

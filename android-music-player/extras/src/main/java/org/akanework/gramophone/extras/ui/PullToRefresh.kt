@@ -57,7 +57,11 @@ object PullToRefresh {
 
         swipe.setOnChildScrollUpCallback { _, _ ->
             if (appBarOffset != 0) return@setOnChildScrollUpCallback true
-            currentList(pager)?.canScrollVertically(-1) == true
+            when (val scrollable = currentScrollable(pager)) {
+                is VerticalScrollReporter -> scrollable.canScrollUp()
+                null -> false
+                else -> scrollable.canScrollVertically(-1)
+            }
         }
         swipe.setOnRefreshListener(onRefresh)
     }
@@ -67,19 +71,30 @@ object PullToRefresh {
         return MaterialColors.getColor(view, if (id != 0) id else fallback)
     }
 
-    /** The RecyclerView inside the page that is currently shown, if any. */
-    private fun currentList(pager: ViewPager2): RecyclerView? {
+    /**
+     * The scrolling thing inside the page that is currently shown: a library
+     * tab's RecyclerView, or a Compose page that reports for itself.
+     */
+    private fun currentScrollable(pager: ViewPager2): View? {
         val inner = pager.getChildAt(0) as? RecyclerView ?: return null
         val page = inner.layoutManager?.findViewByPosition(pager.currentItem) ?: return null
-        return findList(page)
+        return findScrollable(page)
     }
 
-    private fun findList(view: View): RecyclerView? {
-        if (view is RecyclerView) return view
+    private fun findScrollable(view: View): View? {
+        if (view is RecyclerView || view is VerticalScrollReporter) return view
         if (view !is ViewGroup) return null
         for (i in 0 until view.childCount) {
-            findList(view.getChildAt(i))?.let { return it }
+            findScrollable(view.getChildAt(i))?.let { return it }
         }
         return null
     }
+}
+
+/**
+ * A page that is not a RecyclerView (the Compose Home tab) says here whether
+ * its content can scroll up, so pull-to-refresh only takes a drag at the top.
+ */
+interface VerticalScrollReporter {
+    fun canScrollUp(): Boolean
 }

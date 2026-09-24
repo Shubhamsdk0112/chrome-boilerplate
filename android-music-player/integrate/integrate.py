@@ -892,6 +892,70 @@ def main(root: Path) -> int:
         marker="needsMissingOnDestroyCallWorkarounds() && isFinishing",
     ))
 
+
+    # ------------------------------------------------------------------
+    # 10a. Home tab (extras HomeFragment, Compose): first in the default tab
+    #      order, and put first for existing users whose saved tab list
+    #      predates it (upstream would append it after the hidden marker,
+    #      i.e. hide it). The tab settings screen can still move or hide it.
+    # ------------------------------------------------------------------
+    vp_adapter = (root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+                  / "ui" / "adapters" / "ViewPager2Adapter.kt")
+    steps.append(patch(
+        vp_adapter,
+        anchor="""            // Do not rename entries here, names are written to disk. Order is default tab order
+            Songs(R.id.songs, R.string.category_songs),""",
+        replacement="""            // Do not rename entries here, names are written to disk. Order is default tab order
+            Home(org.akanework.gramophone.extras.R.id.extras_home,
+                org.akanework.gramophone.extras.R.string.home_tab),
+            Songs(R.id.songs, R.string.category_songs),""",
+        marker="org.akanework.gramophone.extras.R.id.extras_home",
+    ))
+    steps.append(patch(
+        vp_adapter,
+        anchor="""                if (!stList.contains(it) && (it != Tab.Genres || hasImprovedMediaStore()))
+                    stList.add(it)""",
+        replacement="""                if (!stList.contains(it) && (it != Tab.Genres || hasImprovedMediaStore())) {
+                    // :extras — a saved tab list from before Home existed
+                    // gets Home in front rather than past the hidden marker.
+                    if (it == Tab.Home) stList.add(0, it) else stList.add(it)
+                }""",
+        marker="if (it == Tab.Home) stList.add(0, it)",
+    ))
+    steps.append(patch(
+        vp_adapter,
+        anchor="""    override fun createFragment(position: Int): Fragment =
+        AdapterFragment().apply {""",
+        replacement="""    override fun createFragment(position: Int): Fragment =
+        if (tabs[position] == Tab.Home) org.akanework.gramophone.extras.home.HomeFragment()
+        else AdapterFragment().apply {""",
+        marker="extras.home.HomeFragment()",
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "ui" / "fragments" / "ViewPagerFragment.kt",
+        anchor="""                            as AdapterFragment?)?.onTabReselected()""",
+        replacement="""                            as? AdapterFragment)?.onTabReselected()""",
+        marker="as? AdapterFragment)?.onTabReselected()",
+    ))
+    # Android Auto's browse tree maps tabs to categories; Home is not one.
+    tree = (root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+            / "logic" / "LibraryTreeLoader.kt")
+    steps.append(patch(
+        tree,
+        anchor="""            .filter { it != ViewPager2Adapter.Companion.Tab.FileSystem }""",
+        replacement="""            .filter { it != ViewPager2Adapter.Companion.Tab.FileSystem
+                && it != ViewPager2Adapter.Companion.Tab.Home }""",
+        marker="it != ViewPager2Adapter.Companion.Tab.Home",
+    ))
+    steps.append(patch(
+        tree,
+        anchor='        ViewPager2Adapter.Companion.Tab.FileSystem -> "detailed_folders"',
+        replacement=('        ViewPager2Adapter.Companion.Tab.FileSystem -> "detailed_folders"\n'
+                     '        ViewPager2Adapter.Companion.Tab.Home -> "home"'),
+        marker="Tab.Home -> \"home\"",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

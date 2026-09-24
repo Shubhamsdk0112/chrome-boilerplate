@@ -67,6 +67,10 @@ class PodcastStore private constructor(private val context: Context) {
     private val _positions = MutableStateFlow<Map<String, Long>>(emptyMap())
     val positions: StateFlow<Map<String, Long>> = _positions.asStateFlow()
 
+    /** When each episode was last listened to; orders "Continue listening". */
+    private val _playedAt = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val playedAt: StateFlow<Map<String, Long>> = _playedAt.asStateFlow()
+
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
 
@@ -144,7 +148,15 @@ class PodcastStore private constructor(private val context: Context) {
         val rounded = (positionMs / 1000) * 1000
         if (_positions.value[guid] == rounded) return
         _positions.update { it + (guid to rounded) }
+        _playedAt.update { it + (guid to System.currentTimeMillis()) }
         persist()
+    }
+
+    /** Listened to the end, or close enough that nobody resumes the last half minute. */
+    fun isFinished(episode: Episode): Boolean {
+        val duration = episode.durationSeconds * 1000L
+        val position = position(episode.guid)
+        return duration > 0 && position >= duration - 30_000L
     }
 
     /**
@@ -214,6 +226,7 @@ class PodcastStore private constructor(private val context: Context) {
                 })
                 root.put("downloads", JSONObject(_downloads.value))
                 root.put("positions", JSONObject(_positions.value))
+                root.put("playedAt", JSONObject(_playedAt.value))
                 val tmp = File(file.parentFile, file.name + ".tmp")
                 runCatching {
                     tmp.writeText(root.toString())
@@ -236,9 +249,13 @@ class PodcastStore private constructor(private val context: Context) {
             val positions = root.optJSONObject("positions")?.let { o ->
                 o.keys().asSequence().associateWith { o.getLong(it) }
             }.orEmpty()
+            val playedAt = root.optJSONObject("playedAt")?.let { o ->
+                o.keys().asSequence().associateWith { o.getLong(it) }
+            }.orEmpty()
             _podcasts.value = podcasts
             _downloads.value = downloads
             _positions.value = positions
+            _playedAt.value = playedAt
         }.onFailure { Log.w(TAG, "could not read ${file.name}, starting empty", it) }
     }
 

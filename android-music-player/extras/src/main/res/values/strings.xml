@@ -201,4 +201,16 @@
     <!-- Playback (patched into upstream Behaviour settings) -->
     <string name="extras_resume_title">Resume after other apps finish playing</string>
     <string name="extras_resume_summary">When a video or another app takes over the sound, start playing again once it has been quiet for a few seconds. Calls always pause and resume on their own.</string>
+
+    <!-- Home tab -->
+    <string name="home_tab">Home</string>
+    <string name="home_continue">Continue listening</string>
+    <string name="home_recently_added">Recently added</string>
+    <string name="home_most_played">Your most played</string>
+    <string name="home_new_episodes">New episodes</string>
+    <string name="home_add_songs">Add songs</string>
+    <string name="home_podcasts">Podcasts</string>
+    <string name="home_history">History</string>
+    <string name="home_empty_title">Home fills up as you listen</string>
+    <string name="home_empty_body">Songs you play, podcasts you are halfway through, and everything new in your library show up here.</string>
 </resources>

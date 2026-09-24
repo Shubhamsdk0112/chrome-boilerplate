@@ -75,6 +75,13 @@ emulator:
   from the PC with plain yt-dlp — and is now: explained, one throttled
   yt-dlp update, cookies as the fix. `Failed.botCheck` is persisted so
   saving cookies retries exactly those jobs.
+- v0.3.0: downloader search (ytsearch) + playlist import (PlaylistImports,
+  Music/<name>.m3u rebuilt as songs land) + multi-link; Home tab
+  (home/HomeFragment, integrate 10a); YouTubeChannels (Atom feed uploads,
+  avatar via `--print playlist:%(thumbnails)j`), PodcastRefresher, podcast
+  speed, cleanup; app/ UpdateChecker + Backup (integrate 10b; daily copy in
+  Download/Gramophone); richer download notification. Bump
+  `app/ExtrasVersion.NAME` with every release tag. Not done: GitHub Actions CI.
 
 ## Build
 
@@ -130,7 +137,7 @@ release build before shipping it.
 
 Releases are published to GitHub with `C:\Users\shubh\dev\publish_release.py <tag>`
 (uses the stored git credential; notes come from `C:\Users\shubh\dev\release-notes.md`).
-Tags so far: `extras-v0.1.0`, `extras-v0.2.0`, `extras-v0.2.1`, `extras-v0.2.2`. The PR from the working branch
+Tags so far: `extras-v0.1.0`, `extras-v0.2.0`, `extras-v0.2.1`, `extras-v0.2.2`, `extras-v0.3.0`. The PR from the working branch
 to `main` is opened with `C:\Users\shubh\dev\open_pr.py` (same credential).
 
 ## Verify without the SDK

@@ -46,6 +46,10 @@
             android:exported="false"
             android:label="@string/filter_title" />
 
+        <activity
+            android:name="org.akanework.gramophone.extras.app.ui.AppActivity"
+            android:exported="false"
+            android:label="@string/app_title" />
         <service
             android:name="org.akanework.gramophone.extras.importer.DownloadService"
             android:exported="false"

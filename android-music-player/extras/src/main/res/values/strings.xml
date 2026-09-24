@@ -222,4 +222,37 @@
     <string name="home_history">History</string>
     <string name="home_empty_title">Home fills up as you listen</string>
     <string name="home_empty_body">Songs you play, podcasts you are halfway through, and everything new in your library show up here.</string>
+
+    <!-- Updates & backup -->
+    <string name="app_settings_title">Updates &amp; backup</string>
+    <string name="app_settings_summary">New versions, and a copy of your podcasts, history and settings</string>
+    <string name="app_title">Updates &amp; backup</string>
+    <string name="app_updates">Updates</string>
+    <string name="app_version">You have version %1$s</string>
+    <string name="app_checking">Checking GitHub for a newer version…</string>
+    <string name="app_check_failed">Could not reach GitHub.</string>
+    <string name="app_check_again">Check again</string>
+    <string name="app_up_to_date">You have the latest version.</string>
+    <string name="app_update_available">Version %1$s is available</string>
+    <string name="app_update_tap">Tap to see what is new and download it</string>
+    <string name="app_install_over">Install it over this one — do not uninstall first, or your podcasts and history go with it.</string>
+    <string name="app_download_apk">Download APK</string>
+    <string name="app_release_page">Release page</string>
+    <string name="app_auto_check">Check automatically</string>
+    <string name="app_auto_check_summary">Once a day; a notification when there is something new</string>
+    <string name="app_updates_channel">App updates</string>
+    <string name="app_backup">Backup</string>
+    <string name="app_backup_explainer">Followed podcasts, where you are in each episode, listening history, imported playlists and settings. Songs are files in Music/ and are safe on their own; downloaded episodes and YouTube cookies are not in the backup.</string>
+    <string name="app_backup_now">Back up to a file</string>
+    <string name="app_restore">Restore</string>
+    <string name="app_backup_saved">Backup saved</string>
+    <string name="app_backup_failed">Could not do that</string>
+    <string name="app_auto_backup">Daily backup to Download/Gramophone</string>
+    <string name="app_auto_backup_summary">So an uninstall does not lose it all: reinstall, Restore, pick extras-backup.json</string>
+    <string name="app_auto_backup_last">Last copy %1$s</string>
+    <string name="app_restore_title">Restore this backup?</string>
+    <string name="app_restore_body">Made %1$s. Followed shows: %2$d. Songs in listening history: %3$d.
+
+It replaces what is here now, and the app restarts.</string>
+    <string name="app_restore_confirm">Restore and restart</string>
 </resources>

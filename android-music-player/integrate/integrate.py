@@ -956,6 +956,54 @@ def main(root: Path) -> int:
         marker="Tab.Home -> \"home\"",
     ))
 
+
+    # ------------------------------------------------------------------
+    # 10b. Updates & backup: a Settings row, and the two once-a-day jobs
+    #      (update check, backup copy to Download/Gramophone) at start.
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_top.xml",
+        anchor="""    <Preference
+        android:icon="@drawable/ic_info"
+        android:key="about\"""",
+        replacement="""    <Preference
+        android:icon="@drawable/ic_extras_update"
+        android:key="extrasApp"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/app_settings_summary"
+        android:title="@string/app_settings_title" />
+
+    <Preference
+        android:icon="@drawable/ic_info"
+        android:key="about\"""",
+        marker='android:key="extrasApp"',
+    ))
+    steps.append(patch(
+        fragment,
+        anchor="""            "libraryFilter" -> {
+                startActivity(FilterActivity::class.java)
+            }""",
+        replacement="""            "libraryFilter" -> {
+                startActivity(FilterActivity::class.java)
+            }
+
+            "extrasApp" -> {
+                startActivity(org.akanework.gramophone.extras.app.ui.AppActivity::class.java)
+            }""",
+        marker='"extrasApp" ->',
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "GramophoneApplication.kt",
+        anchor="""        org.akanework.gramophone.extras.history.ListeningHistory.start(this)""",
+        replacement="""        org.akanework.gramophone.extras.history.ListeningHistory.start(this)
+        // Once a day each, both on IO: is there a newer build, and a copy of
+        // the extras' state in Download/Gramophone.
+        org.akanework.gramophone.extras.app.UpdateChecker.checkInBackground(this)
+        org.akanework.gramophone.extras.app.Backup.autoBackupInBackground(this)""",
+        marker="UpdateChecker.checkInBackground",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

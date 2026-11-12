@@ -61,7 +61,7 @@ object Backup {
     private val PREFS = listOf("extras_filter", "extras_importer", "extras_podcasts", "extras_imports", "extras_app")
 
     /** Keys the extras own in Gramophone's default preferences. */
-    private val DEFAULT_PREF_KEYS = listOf("extras_resume_after_interruption")
+    private val DEFAULT_PREF_KEYS = listOf("extras_resume_after_interruption", "extras_interruption_mode", "extras_duck_percent")
 
     data class Summary(val shows: Int, val historyEntries: Int, val createdAt: Long, val version: String)
 

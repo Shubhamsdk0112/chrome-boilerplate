@@ -98,6 +98,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.akanework.gramophone.extras.R
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.Box
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.akanework.gramophone.extras.podcast.PodcastRefresher
 import android.text.format.Formatter
 import android.view.HapticFeedbackConstants
@@ -441,6 +445,41 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var removeShowOpen by remember { mutableStateOf(false) }
+
+    if (removeShowOpen) {
+        // File sizes are disk reads: off the main thread.
+        val files by produceState<List<java.io.File>>(emptyList(), podcast.feedUrl) {
+            value = withContext(Dispatchers.IO) { podcast.episodes.mapNotNull { store.downloadedFile(it.guid) } }
+        }
+        val size = files.sumOf { it.length() }
+        AlertDialog(
+            onDismissRequest = { removeShowOpen = false },
+            title = { Text(stringResource(R.string.podcast_remove_show_title, podcast.title)) },
+            text = {
+                Text(
+                    if (files.isEmpty()) stringResource(R.string.podcast_remove_show_body_none)
+                    else stringResource(R.string.podcast_remove_show_body, android.text.format.Formatter.formatShortFileSize(context, size)),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    removeShowOpen = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            podcast.episodes.forEach { e ->
+                                store.downloadedFile(e.guid)?.delete()
+                                store.forgetDownload(e.guid)
+                            }
+                        }
+                        store.unsubscribe(podcast.feedUrl)
+                        onBack()
+                    }
+                }) { Text(stringResource(R.string.podcast_remove)) }
+            },
+            dismissButton = { TextButton(onClick = { removeShowOpen = false }) { Text(stringResource(android.R.string.cancel)) } },
+        )
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbars) },
@@ -469,8 +508,8 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                     if (podcast.feedUrl != PodcastStore.LOCAL_FEED) IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.podcast_unfollow)) },
-                            onClick = { menuOpen = false; store.unsubscribe(podcast.feedUrl); onBack() },
+                            text = { Text(stringResource(R.string.podcast_remove_show)) },
+                            onClick = { menuOpen = false; removeShowOpen = true },
                         )
                     }
                 },
@@ -537,6 +576,21 @@ private fun ShowScreen(podcast: Podcast, onBack: () -> Unit) {
                         }
                     },
                     onCancel = { job?.let { repository.cancel(it.id) } },
+                    onMoveToSongs = if (episode.source == EpisodeSource.YOUTUBE && downloaded) {
+                        {
+                            repository.moveEpisodeToSongs(podcast, episode)
+                            scope.launch { snackbars.showSnackbar(context.getString(R.string.podcast_move_to_songs_started, episode.title)) }
+                        }
+                    } else null,
+                    onRemove = if (episode.source != EpisodeSource.LOCAL) {
+                        {
+                            scope.launch {
+                                withContext(Dispatchers.IO) { store.downloadedFile(episode.guid)?.delete() }
+                                store.forgetDownload(episode.guid)
+                                store.removeEpisode(podcast.feedUrl, episode.guid)
+                            }
+                        }
+                    } else null,
                     onDelete = {
                         scope.launch {
                             store.downloadedFile(episode.guid)?.delete()
@@ -560,8 +614,11 @@ private fun EpisodeRow(
     onPlay: (startMs: Long?) -> Unit,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
+    onMoveToSongs: (() -> Unit)?,
+    onRemove: (() -> Unit)?,
     onDelete: () -> Unit,
 ) {
+    var episodeMenu by remember { mutableStateOf(false) }
     val colors = if (isCurrent) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     else CardDefaults.cardColors()
     val canPlay = downloaded || episode.streamable
@@ -603,6 +660,8 @@ private fun EpisodeRow(
                         stringResource(R.string.podcast_needs_download),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // Takes the free space, so the buttons on the right keep theirs.
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 if (episode.chapters.isNotEmpty()) {
@@ -610,7 +669,26 @@ private fun EpisodeRow(
                         Text(if (chaptersOpen) stringResource(R.string.podcast_hide_chapters) else stringResource(R.string.podcast_show_chapters))
                     }
                 }
-                Spacer(Modifier.weight(1f))
+                if (canPlay) Spacer(Modifier.weight(1f))
+                if (onMoveToSongs != null || onRemove != null) {
+                    Box {
+                        IconButton(onClick = { episodeMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
+                        DropdownMenu(expanded = episodeMenu, onDismissRequest = { episodeMenu = false }) {
+                            onMoveToSongs?.let { move ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.podcast_move_to_songs)) },
+                                    onClick = { episodeMenu = false; move() },
+                                )
+                            }
+                            onRemove?.let { remove ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.podcast_remove_episode)) },
+                                    onClick = { episodeMenu = false; remove() },
+                                )
+                            }
+                        }
+                    }
+                }
                 when {
                     downloading != null -> {
                         Text("${downloading.progress.toInt()}%", style = MaterialTheme.typography.labelMedium)
@@ -699,7 +777,12 @@ private fun NowPlayingBar() {
     }
 
     AnimatedVisibility(visible = episode != null) {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 3.dp) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 3.dp,
+            // Edge to edge: without this the strip sits under the navigation bar.
+            modifier = Modifier.navigationBarsPadding(),
+        ) {
             Column {
                 if (duration > 0) {
                     LinearProgressIndicator(

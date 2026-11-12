@@ -83,7 +83,9 @@ class DownloadService : Service() {
                 val title = if (batch.size > 1) {
                     getString(R.string.ytdlp_notification_count, (finished + 1).coerceAtMost(batch.size), batch.size)
                 } else getString(R.string.ytdlp_notification_title)
-                val next = active.getOrNull(1)?.label
+                // A queued link has no title until it is read; a URL is noise there.
+                val next = active.getOrNull(1)?.title?.let { getString(R.string.ytdlp_notification_next, it) }
+                    ?: if (active.size > 1) resources.getQuantityString(R.plurals.ytdlp_notification_more, active.size - 1, active.size - 1) else null
                 notificationManager?.notify(
                     NOTIFICATION_ID,
                     buildNotification(
@@ -181,7 +183,7 @@ class DownloadService : Service() {
             .setContentText(text)
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    if (next != null) text + "\n" + getString(R.string.ytdlp_notification_next, next) else text,
+                    if (next != null) text + "\n" + next else text,
                 ),
             )
             .setLargeIcon(art)

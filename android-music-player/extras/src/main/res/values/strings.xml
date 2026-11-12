@@ -262,4 +262,22 @@
     <string name="app_restore_title">Restore this backup?</string>
     <string name="app_restore_body">Made %1$s. Followed shows: %2$d. Songs in listening history: %3$d.\n\nIt replaces what is here now, and the app restarts.</string>
     <string name="app_restore_confirm">Restore and restart</string>
+
+    <!-- v0.3.1 -->
+    <string name="podcast_move_to_songs">Move to songs</string>
+    <string name="podcast_move_to_songs_started">Moving “%1$s” to your songs</string>
+    <string name="podcast_remove_episode">Remove from Podcasts</string>
+    <string name="podcast_remove_show">Remove show</string>
+    <string name="podcast_remove_show_title">Remove “%1$s”?</string>
+    <string name="podcast_remove_show_body">It disappears from Podcasts and its downloaded episodes (%1$s) are deleted. Songs in your library are not touched.</string>
+    <string name="podcast_remove_show_body_none">It disappears from Podcasts. Nothing downloaded is deleted.</string>
+    <string name="podcast_remove">Remove</string>
+    <string name="ytdlp_dismiss">Remove from list</string>
+    <string name="extras_interruption_title">When another app plays sound</string>
+    <string name="extras_duck_title">Music volume underneath</string>
+    <string name="extras_duck_summary">Percent, for “lower the volume”. Calls and meetings always pause.</string>
+    <plurals name="ytdlp_notification_more">
+        <item quantity="one">%1$d more queued</item>
+        <item quantity="other">%1$d more queued</item>
+    </plurals>
 </resources>

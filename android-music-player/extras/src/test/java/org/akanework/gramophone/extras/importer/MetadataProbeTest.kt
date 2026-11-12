@@ -151,4 +151,25 @@ class MetadataProbeTest {
         assertEquals(0L, MetadataProbe.parseUploadDate("2026-09-18"))
         assertEquals(0L, MetadataProbe.parseUploadDate(null))
     }
+
+    @Test
+    fun `long music stays a song and long talk goes to podcasts`() {
+        fun meta(title: String, catalog: Boolean = false) = TrackMetadata(
+            videoId = "x", title = title, artist = null, album = null, year = null,
+            durationSeconds = 900, thumbnailUrl = null, rawTitle = title, fromMusicCatalog = catalog,
+        )
+        val music = listOf(
+            "Nine Inch Nails - Ghosts I-IV (Full OST)", "Interstellar Soundtrack - Hans Zimmer",
+            "Daft Punk - Alive 2007 (Full Album)", "lofi hip hop radio to study to",
+            "Deep House Mix 2026", "Song Title (Extended Version)", "Artist - Track (Official Audio)",
+        )
+        music.forEach { org.junit.Assert.assertTrue(it, MetadataProbe.looksLikeMusic(meta(it))) }
+        val talk = listOf(
+            "Huberman Lab Ep 123: Sleep", "How I built a 7-figure business", "Mixing tips for beginners",
+            "The Joe Rogan Experience #2100",
+        )
+        talk.forEach { org.junit.Assert.assertFalse(it, MetadataProbe.looksLikeMusic(meta(it))) }
+        // YouTube Music knows it as a track: a song whatever the title.
+        org.junit.Assert.assertTrue(MetadataProbe.looksLikeMusic(meta("Untitled 7", catalog = true)))
+    }
 }

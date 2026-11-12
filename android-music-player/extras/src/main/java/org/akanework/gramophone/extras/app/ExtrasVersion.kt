@@ -19,7 +19,7 @@ package org.akanework.gramophone.extras.app
 
 /** This build of the extras, and where its releases live. */
 object ExtrasVersion {
-    const val NAME = "0.3.0"
+    const val NAME = "0.3.1"
     const val TAG_PREFIX = "extras-v"
     const val REPO = "Shubhamsdk0112/chrome-boilerplate"
 }

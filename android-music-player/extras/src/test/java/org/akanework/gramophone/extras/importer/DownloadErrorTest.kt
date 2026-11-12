@@ -163,4 +163,11 @@ class DownloadErrorTest {
         val message = humanize("ERROR: Unable to handle request: Unsupported url scheme: \"htttps\" (urllib)")
         assertTrue(message, message.contains("does not look like a link"))
     }
+
+    @Test
+    fun `no DNS is a network problem and is retried`() {
+        val err = "ERROR: [youtube] aqz-KE-bpKQ: Unable to download API page: [Errno 7] No address associated with hostname"
+        org.junit.Assert.assertTrue(humanize(err).contains("connection"))
+        org.junit.Assert.assertTrue(DownloadError.isTransient(err))
+    }
 }

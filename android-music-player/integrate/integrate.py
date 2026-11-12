@@ -1004,6 +1004,46 @@ def main(root: Path) -> int:
         marker="UpdateChecker.checkInBackground",
     ))
 
+
+    # ------------------------------------------------------------------
+    # 10c. "When another app plays sound": pause+resume / lower the volume /
+    #      pause, with the volume level. Replaces the v0.2.1 on/off switch
+    #      (FocusResumer still reads it once for people who turned it off).
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_behavior.xml",
+        anchor="""        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="extras_resume_after_interruption"
+            android:layout="@layout/preference_switch"
+            android:summary="@string/extras_resume_summary"
+            android:title="@string/extras_resume_title"
+            android:widgetLayout="@layout/preference_switch_widget"
+            app:iconSpaceReserved="false" />""",
+        replacement="""        <ListPreference
+            android:defaultValue="pause_resume"
+            android:entries="@array/extras_interruption_entries"
+            android:entryValues="@array/extras_interruption_values"
+            android:key="extras_interruption_mode"
+            android:layout="@layout/preference_basic"
+            android:title="@string/extras_interruption_title"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+
+        <SeekBarPreference
+            android:defaultValue="30"
+            android:key="extras_duck_percent"
+            android:layout="@layout/preference_seekbar"
+            android:max="80"
+            android:summary="@string/extras_duck_summary"
+            android:title="@string/extras_duck_title"
+            app:iconSpaceReserved="false"
+            app:min="10"
+            app:seekBarIncrement="5"
+            app:showSeekBarValue="true" />""",
+        marker="extras_interruption_mode",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

@@ -41,6 +41,8 @@ data class TrackMetadata(
     val channel: String? = null,
     /** Upload date, epoch ms, or 0 when unknown. */
     val uploadedAt: Long = 0L,
+    /** YouTube Music knows this as a track (track/album fields, or a "- Topic" channel). */
+    val fromMusicCatalog: Boolean = false,
 ) {
     /** `Artist - Title`, or just the title when the artist is unknown. */
     val displayName: String
@@ -130,8 +132,29 @@ object MetadataProbe {
             channelId = field(10),
             channel = field(11),
             uploadedAt = parseUploadDate(field(12)),
+            fromMusicCatalog = field(1) != null || field(3) != null ||
+                uploader?.endsWith(" - Topic") == true,
         )
     }
+
+    // Words that mark a long upload as music rather than talk: soundtracks,
+    // mixes, full albums, extended versions. Whole words only, so "mixing
+    // tips" or "remixing the news" do not count.
+    private val MUSIC_WORDS = Regex(
+        """\b(?:o\.?s\.?t|soundtrack|official\s+(?:music\s+)?(?:audio|video)|music\s+video|""" +
+            """lyrics?|lyric\s+video|visuali[sz]er|remix|full\s+album|instrumental|""" +
+            """extended(?:\s+(?:mix|version))?|mix|mixtape|soundscape|""" +
+            """ambient|lo-?fi|symphony|concerto|sonata|opera)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * Whether a long upload is music (a 12-minute soundtrack, a DJ mix, a
+     * full album) rather than a podcast. Long music stays a song; only long
+     * talk goes to Podcasts.
+     */
+    fun looksLikeMusic(meta: TrackMetadata): Boolean =
+        meta.fromMusicCatalog || MUSIC_WORDS.containsMatchIn(meta.rawTitle)
 
     /** yt-dlp's `chapters` field as JSON: `[{"start_time":0,"end_time":61,"title":"Intro"}]`. */
     internal fun parseChapters(json: String?): List<Chapter> {

@@ -127,6 +127,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.produceState
@@ -615,6 +618,7 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
                         job = job,
                         onCancel = { repository.cancel(job.id) },
                         onRetry = { repository.retry(job.id) },
+                        onDismiss = {},
                         modifier = Modifier.animateItem(),
                     )
                 }
@@ -622,12 +626,24 @@ private fun DownloaderScreen(share: ShareRequest?, onShareHandled: () -> Unit) {
             if (finished.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.ytdlp_section_done), finished.size) }
                 items(finished, key = { it.id }) { job ->
-                    JobCard(
-                        job = job,
-                        onCancel = { repository.cancel(job.id) },
-                        onRetry = { repository.retry(job.id) },
-                        modifier = Modifier.animateItem(),
+                    val swipe = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value != SwipeToDismissBoxValue.Settled) repository.dismiss(job.id)
+                            value != SwipeToDismissBoxValue.Settled
+                        },
                     )
+                    SwipeToDismissBox(
+                        state = swipe,
+                        backgroundContent = {},
+                        modifier = Modifier.animateItem(),
+                    ) {
+                        JobCard(
+                            job = job,
+                            onCancel = { repository.cancel(job.id) },
+                            onRetry = { repository.retry(job.id) },
+                            onDismiss = { repository.dismiss(job.id) },
+                        )
+                    }
                 }
             }
         }
@@ -989,6 +1005,7 @@ private fun JobCard(
     job: DownloadJob,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
+    onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1038,8 +1055,13 @@ private fun JobCard(
                     !stage.isTerminal -> IconButton(onClick = onCancel) {
                         Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ytdlp_cancel))
                     }
-                    failed -> IconButton(onClick = onRetry) {
-                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.ytdlp_retry))
+                    failed -> Row {
+                        IconButton(onClick = onRetry) {
+                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.ytdlp_retry))
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ytdlp_dismiss))
+                        }
                     }
                     done?.uri != null -> Icon(
                         Icons.Default.PlayArrow,

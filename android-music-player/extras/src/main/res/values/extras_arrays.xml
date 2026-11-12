@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="extras_interruption_entries">
+        <item>Pause, then carry on when it stops</item>
+        <item>Keep playing, lower the volume</item>
+        <item>Pause</item>
+    </string-array>
+    <string-array name="extras_interruption_values" translatable="false">
+        <item>pause_resume</item>
+        <item>duck</item>
+        <item>pause</item>
+    </string-array>
+</resources>

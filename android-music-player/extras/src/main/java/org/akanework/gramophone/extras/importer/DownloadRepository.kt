@@ -302,6 +302,115 @@ class DownloadRepository(private val context: Context) {
         scheduleSave()
     }
 
+    /** Artwork, tags, into Music/Gramophone, remembered. Shared by downloads and "Move to songs". */
+    private suspend fun importAsSong(
+        jobId: String,
+        meta: TrackMetadata,
+        audio: File,
+        workDir: File,
+        format: AudioFormat,
+    ) {
+        // --- artwork --------------------------------------------------
+        update(jobId) { it.copy(stage = JobStage.FindingArtwork) }
+        val artwork = ArtworkFinder.find(meta)
+        val coverFile = artwork?.let {
+            File(workDir, "cover.jpg").apply { writeBytes(it.jpeg) }
+        }
+
+        // --- tagging --------------------------------------------------
+        update(jobId) { it.copy(stage = JobStage.Tagging) }
+        val tagged = Ffmpeg.applyCoverAndTags(
+            context = context,
+            audio = audio,
+            cover = coverFile,
+            meta = meta,
+            artwork = artwork,
+        )
+
+        // --- publish --------------------------------------------------
+        update(jobId) { it.copy(stage = JobStage.Importing) }
+        val renamed = renameForLibrary(tagged, meta, format)
+        val uri = MusicImporter.publish(context, renamed, meta, artwork?.album)
+            ?: throw YtDlpFailure("Could not add the file to your music library")
+
+        ImportIndex.record(context, meta.videoId, uri)
+        update(jobId) { it.copy(stage = JobStage.Done(uri, artwork?.source)) }
+        keepVisibleIfLong(uri, meta)
+    }
+
+    /**
+     * The library filter hides audio over ten minutes (it is usually talk).
+     * A long song the user chose to add is not: mark it Keep so the filter
+     * leaves it in the library.
+     */
+    private fun keepVisibleIfLong(uri: Uri, meta: TrackMetadata) {
+        if (meta.durationSeconds < (PodcastStore.LONG_AUDIO_MINUTES - 1) * 60) return
+        runCatching {
+            @Suppress("DEPRECATION")
+            val path = context.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DATA), null, null, null)
+                ?.use { if (it.moveToFirst()) it.getString(0) else null } ?: return
+            org.akanework.gramophone.extras.filter.FilterStore(context)
+                .setManualOverride(path, org.akanework.gramophone.extras.filter.Judgement.MUSIC)
+        }.onFailure { Log.w(TAG, "could not mark long song as Keep", it) }
+    }
+
+    /**
+     * A YouTube episode that is really a song (the OST that went to Podcasts):
+     * tag it, put it in the library, and take it out of Podcasts. Runs as a
+     * job so the downloader shows it. A YouTube show left with nothing
+     * downloaded is removed too — its other listed uploads were never chosen.
+     */
+    fun moveEpisodeToSongs(podcast: Podcast, episode: Episode): String {
+        val store = PodcastStore.get(context)
+        val videoId = episode.guid.removePrefix("yt:")
+        val id = UUID.randomUUID().toString()
+        _jobs.value += DownloadJob(
+            id = id, url = episode.audioUrl, format = AudioFormat.M4A,
+            stage = JobStage.Tagging, title = episode.title, artist = podcast.title, videoId = videoId,
+        )
+        scheduleSave()
+        scope.launch {
+            val workDir = File(context.cacheDir, "ytdlp-work/$id").apply { mkdirs() }
+            try {
+                // The file check is disk work: here, on IO, not on the tap.
+                val file = store.downloadedFile(episode.guid)
+                    ?: throw YtDlpFailure("The downloaded file is gone. Download it again first.")
+                val audio = File(workDir, "$videoId.${file.extension.ifBlank { "m4a" }}")
+                file.copyTo(audio, overwrite = true)
+                val meta = MetadataProbe.cleanUp(
+                    videoId = videoId, track = null, artist = null, album = null, year = null,
+                    duration = episode.durationSeconds, thumbnail = episode.imageUrl,
+                    rawTitle = episode.title, uploader = podcast.title,
+                )
+                val format = AudioFormat.entries.firstOrNull { it.extension == audio.extension } ?: AudioFormat.M4A
+                importAsSong(id, meta, audio, workDir, format)
+                if (currentStage(id) is JobStage.Done) {
+                    file.delete()
+                    store.forgetDownload(episode.guid)
+                    store.removeEpisode(podcast.feedUrl, episode.guid)
+                    val left = store.podcast(podcast.feedUrl)
+                    if (left != null && left.feedUrl.startsWith(PodcastStore.YOUTUBE_FEED_PREFIX) &&
+                        left.episodes.none { store.downloadedFile(it.guid) != null }
+                    ) store.unsubscribe(left.feedUrl)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "move to songs failed for ${episode.title}", e)
+                update(id) { it.copy(stage = JobStage.Failed(e.message ?: "Could not move it to your songs")) }
+            } finally {
+                workDir.deleteRecursively()
+            }
+        }
+        return id
+    }
+
+    /** Takes a job card off the list for good (a failed or finished one). */
+    fun dismiss(jobId: String) {
+        val job = _jobs.value.firstOrNull { it.id == jobId } ?: return
+        if (!job.stage.isTerminal) return
+        _jobs.value = _jobs.value.filterNot { it.id == jobId }
+        scheduleSave()
+    }
+
     /** Everything that failed, back into the queue. */
     fun retryAllFailed() {
         _jobs.value.filter { it.stage is JobStage.Failed }.forEach { retry(it.id) }
@@ -438,36 +547,14 @@ class DownloadRepository(private val context: Context) {
             // its own storage (never the music library), its chapters kept,
             // resumable playback. Also whenever the user asked for that.
             val longVideo = meta.durationSeconds >= PodcastStore.LONG_AUDIO_MINUTES * 60
-            if (job.asPodcast || (longVideo && Pacing.longVideosToPodcasts(context))) {
+            // ...unless it is long *music*: a soundtrack, a mix, a full album.
+            val longTalk = longVideo && !MetadataProbe.looksLikeMusic(meta)
+            if (job.asPodcast || (longTalk && Pacing.longVideosToPodcasts(context))) {
                 importAsEpisode(job, meta, audio, workDir)
                 return
             }
 
-            // --- artwork --------------------------------------------------
-            update(jobId) { it.copy(stage = JobStage.FindingArtwork) }
-            val artwork = ArtworkFinder.find(meta)
-            val coverFile = artwork?.let {
-                File(workDir, "cover.jpg").apply { writeBytes(it.jpeg) }
-            }
-
-            // --- tagging --------------------------------------------------
-            update(jobId) { it.copy(stage = JobStage.Tagging) }
-            val tagged = Ffmpeg.applyCoverAndTags(
-                context = context,
-                audio = audio,
-                cover = coverFile,
-                meta = meta,
-                artwork = artwork,
-            )
-
-            // --- publish --------------------------------------------------
-            update(jobId) { it.copy(stage = JobStage.Importing) }
-            val renamed = renameForLibrary(tagged, meta, job.format)
-            val uri = MusicImporter.publish(context, renamed, meta, artwork?.album)
-                ?: throw YtDlpFailure("Could not add the file to your music library")
-
-            ImportIndex.record(context, meta.videoId, uri)
-            update(jobId) { it.copy(stage = JobStage.Done(uri, artwork?.source)) }
+            importAsSong(jobId, meta, audio, workDir, job.format)
         } catch (e: YoutubeDL.CanceledException) {
             update(jobId) { it.copy(stage = JobStage.Cancelled) }
         } catch (e: YoutubeDLException) {

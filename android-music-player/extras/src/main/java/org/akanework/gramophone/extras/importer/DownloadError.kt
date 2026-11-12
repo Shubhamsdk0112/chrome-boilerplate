@@ -85,7 +85,7 @@ object DownloadError {
                 "in the picker.",
         ),
         Rule(
-            listOf("unable to download webpage", "getaddrinfo", "name or service not known",
+            listOf("unable to download webpage", "unable to download api page", "no address associated with hostname", "getaddrinfo", "name or service not known",
                 "network is unreachable", "temporary failure in name resolution",
                 "connection refused", "connection reset"),
             "Could not reach YouTube. Check your connection and try again.",
@@ -146,7 +146,7 @@ object DownloadError {
     }
 
     private val TRANSIENT_NEEDLES = listOf(
-        "unable to download webpage", "getaddrinfo", "name or service not known",
+        "unable to download webpage", "unable to download api page", "no address associated with hostname", "getaddrinfo", "name or service not known",
         "network is unreachable", "temporary failure in name resolution",
         "connection refused", "connection reset", "timed out", "timeout",
         "http error 429", "too many requests", "http error 5", "connection closed",

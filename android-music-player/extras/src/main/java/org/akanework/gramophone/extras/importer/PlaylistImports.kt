@@ -118,18 +118,38 @@ object PlaylistImports {
         }
     }
 
+    /** Overwrites a playlist file this app created. False if it is gone (deleted by the user). */
+    internal fun writePlaylistFile(context: Context, uri: Uri, text: String): Boolean = try {
+        if (uri.scheme == "file") {
+            val f = File(uri.path!!)
+            if (!f.exists()) false else {
+                f.writeText(text)
+                MediaScannerConnection.scanFile(context, arrayOf(uri.path), arrayOf(M3U_MIME), null)
+                true
+            }
+        } else {
+            context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) } != null
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "could not write playlist $uri", e)
+        false
+    }
+
+    internal fun musicDir(): String = musicDirectory()
+
     // ------------------------------------------------------------------
 
     /** Pure: the file Gramophone will read. Paths relative to Music/ when possible. */
-    fun m3u(name: String, tracks: List<Pair<Track, String>>, musicDir: String): String = buildString {
+    /** [musicDir] null writes absolute paths (for files outside Music/ itself). */
+    fun m3u(name: String, tracks: List<Pair<Track, String>>, musicDir: String?): String = buildString {
         append("#EXTM3U\n")
         append("#PLAYLIST:").append(name.replace('\n', ' ')).append('\n')
-        val prefix = musicDir.trimEnd('/') + "/"
+        val prefix = musicDir?.trimEnd('/')?.plus("/")
         for ((track, path) in tracks) {
             val label = listOfNotNull(track.channel, track.title).joinToString(" - ").replace('\n', ' ')
             append("#EXTINF:").append(if (track.durationSeconds > 0) track.durationSeconds else -1)
                 .append(',').append(label).append('\n')
-            append(if (path.startsWith(prefix)) path.removePrefix(prefix) else path).append('\n')
+            append(if (prefix != null && path.startsWith(prefix)) path.removePrefix(prefix) else path).append('\n')
         }
     }
 
@@ -139,14 +159,15 @@ object PlaylistImports {
     private fun musicDirectory(): String =
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC).absolutePath
 
-    private fun createPlaylistFile(context: Context, name: String): Uri? {
+    /** A new, empty .m3u in Music/ (or Music/[subDir]/) that the library lists as a playlist. */
+    internal fun createPlaylistFile(context: Context, name: String, subDir: String? = null): Uri? {
         val displayName = safeFileName(name) + ".m3u"
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
                     put(MediaStore.MediaColumns.MIME_TYPE, M3U_MIME)
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + (subDir?.let { "/$it" } ?: ""))
                 }
                 val uri = context.contentResolver.insert(
                     MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values,
@@ -156,7 +177,7 @@ object PlaylistImports {
                 }
                 uri
             } else {
-                val dir = File(musicDirectory()).apply { mkdirs() }
+                val dir = File(musicDirectory(), subDir ?: "").apply { mkdirs() }
                 var target = File(dir, displayName)
                 var n = 1
                 while (target.exists()) target = File(dir, safeFileName(name) + " ($n).m3u").also { n++ }

@@ -78,13 +78,32 @@ class FocusResumer(context: Context, private val player: Player) :
     private var othersPlaying = false
     private var ducked = false
     private var fadeTarget = 1f
+    // The player has one volume; the duck level and the song fades share it.
+    private var duckGain = 1f
+    private var fadeGain = 1f
+    private fun applyVolume() {
+        val v = (duckGain * fadeGain).coerceIn(0f, 1f)
+        if (player.volume != v) player.volume = v
+    }
+
     private val fadeStep = object : Runnable {
         override fun run() {
-            val now = player.volume
+            val now = duckGain
             val next = if (now < fadeTarget) (now + 0.05f).coerceAtMost(fadeTarget)
             else (now - 0.08f).coerceAtLeast(fadeTarget)
-            player.volume = next
+            duckGain = next
+            applyVolume()
             if (next != fadeTarget) handler.postDelayed(this, 40)
+        }
+    }
+
+    // Fade between songs: the end of a song fades out, the next fades in.
+    private var crossfadeMs = 0L
+    private var fadingIn = false
+    private val crossTick = object : Runnable {
+        override fun run() {
+            updateSongFade()
+            if (crossfadeMs > 0 && player.isPlaying) handler.postDelayed(this, 50)
         }
     }
     private val applyDuck = Runnable { updateDuck() }
@@ -123,13 +142,16 @@ class FocusResumer(context: Context, private val player: Player) :
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == PREF_MODE || key == PREF_DUCK_PERCENT || key == PREF_LEGACY_RESUME) readPrefs()
+        if (key == PREF_MODE || key == PREF_DUCK_PERCENT || key == PREF_LEGACY_RESUME || key == PREF_CROSSFADE) readPrefs()
     }
 
     private fun readPrefs() {
         val legacyResume = prefs.getBoolean(PREF_LEGACY_RESUME, true)
         mode = Mode.from(prefs.getString(PREF_MODE, null)) ?: if (legacyResume) Mode.PAUSE_RESUME else Mode.PAUSE
         duckLevel = (prefs.getInt(PREF_DUCK_PERCENT, 30).coerceIn(5, 90)) / 100f
+        crossfadeMs = prefs.getInt(PREF_CROSSFADE, 0).coerceIn(0, 12) * 1000L
+        handler.removeCallbacks(crossTick)
+        if (crossfadeMs > 0 && player.isPlaying) handler.post(crossTick) else { fadeGain = 1f; applyVolume() }
         // Holding audio focus is what makes Android pause (and on 12+ fade
         // out) the player; in Lower-the-volume mode the player lets go of it.
         val wantsFocus = mode != Mode.DUCK
@@ -301,7 +323,44 @@ class FocusResumer(context: Context, private val player: Player) :
         ducked = false
         handler.removeCallbacks(fadeStep)
         handler.removeCallbacks(applyDuck)
-        if (player.volume != 1f) player.volume = 1f
+        duckGain = 1f
+        applyVolume()
+    }
+
+    // ------------------------------------------------------------------
+    // Fade between songs
+
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        handler.removeCallbacks(crossTick)
+        if (isPlaying && crossfadeMs > 0) handler.post(crossTick)
+    }
+
+    override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+        val isEpisode = mediaItem?.mediaId?.startsWith("podcast:") == true
+        // Only a song that ran into the next one fades in; a skip starts at full volume.
+        fadingIn = crossfadeMs > 0 && !isEpisode && reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+        updateSongFade()
+    }
+
+    private fun updateSongFade() {
+        val fade = crossfadeMs
+        val id = player.currentMediaItem?.mediaId
+        if (fade <= 0 || id == null || id.startsWith("podcast:")) {
+            fadeGain = 1f; applyVolume(); return
+        }
+        val pos = player.currentPosition
+        val dur = player.duration
+        // Fade out only into another song, and never inside a song too short to fade.
+        val out = if (dur > fade * 3 && player.hasNextMediaItem() && player.repeatMode != Player.REPEAT_MODE_ONE) {
+            ((dur - pos).toFloat() / fade).coerceIn(0f, 1f)
+        } else 1f
+        val inn = if (fadingIn) {
+            if (pos >= fade) { fadingIn = false; 1f } else (pos.toFloat() / fade).coerceIn(0.05f, 1f)
+        } else 1f
+        // Ease the curve: a linear ramp sounds like it drops off a cliff at the end.
+        val g = minOf(out, inn)
+        fadeGain = g * g * (3 - 2 * g)
+        applyVolume()
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -324,6 +383,8 @@ class FocusResumer(context: Context, private val player: Player) :
         const val PREF_MODE = "extras_interruption_mode"
         /** Behaviour › "Music volume underneath", percent. */
         const val PREF_DUCK_PERCENT = "extras_duck_percent"
+        /** Audio › "Fade between songs", seconds; 0 is off. */
+        const val PREF_CROSSFADE = "extras_crossfade_seconds"
         /** The v0.2.1 on/off switch; read once for people who turned it off. */
         const val PREF_LEGACY_RESUME = "extras_resume_after_interruption"
 

@@ -55,13 +55,13 @@ object Backup {
     const val AUTO_FILE_NAME = "extras-backup.json"
 
     /** Private files that make up the state. */
-    private val FILES = listOf("extras_podcasts.json", "extras_history.json", "extras_playlists.json")
+    private val FILES = listOf("extras_podcasts.json", "extras_history.json", "extras_playlists.json", "extras_plays.jsonl", "extras_listened.json")
 
     /** SharedPreferences files owned by the extras. */
     private val PREFS = listOf("extras_filter", "extras_importer", "extras_podcasts", "extras_imports", "extras_app")
 
     /** Keys the extras own in Gramophone's default preferences. */
-    private val DEFAULT_PREF_KEYS = listOf("extras_resume_after_interruption", "extras_interruption_mode", "extras_duck_percent")
+    private val DEFAULT_PREF_KEYS = listOf("extras_resume_after_interruption", "extras_interruption_mode", "extras_duck_percent", "extras_crossfade_seconds")
 
     data class Summary(val shows: Int, val historyEntries: Int, val createdAt: Long, val version: String)
 

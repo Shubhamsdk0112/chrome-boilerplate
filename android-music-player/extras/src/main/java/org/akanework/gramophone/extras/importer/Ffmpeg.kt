@@ -127,6 +127,31 @@ object Ffmpeg {
         }
     }
 
+    /**
+     * Adds [coverJpeg] as the cover of [audio], keeping every tag and the
+     * audio stream as they are. Writes to [output]; true on success.
+     * Ogg/Opus cannot take a picture this way (see [AudioFormat.supportsCoverArt]).
+     */
+    suspend fun attachCover(context: Context, audio: File, coverJpeg: File, output: File): Boolean =
+        withContext(Dispatchers.IO) {
+            val binary = YtDlp.ffmpegBinary(context) ?: return@withContext false
+            val mp3 = audio.extension.equals("mp3", ignoreCase = true)
+            val args = buildList {
+                add(binary.absolutePath)
+                add("-y"); add("-loglevel"); add("error")
+                add("-i"); add(audio.absolutePath)
+                add("-i"); add(coverJpeg.absolutePath)
+                add("-map"); add("0:a")
+                add("-map"); add("1:v")
+                add("-map_metadata"); add("0")
+                add("-c"); add("copy")
+                add("-disposition:v:0"); add("attached_pic")
+                if (mp3) { add("-id3v2_version"); add("3") }
+                add(output.absolutePath)
+            }
+            run(context, args) && output.length() > 0
+        }
+
     /** Runs ffmpeg to completion. Returns true on exit code 0. */
     private fun run(context: Context, args: List<String>): Boolean = try {
         val process = ProcessBuilder(args)

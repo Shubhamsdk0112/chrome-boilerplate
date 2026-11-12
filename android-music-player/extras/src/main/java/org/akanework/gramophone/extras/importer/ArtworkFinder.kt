@@ -63,6 +63,11 @@ object ArtworkFinder {
 
     private const val ARTIST_THRESHOLD = 0.34
 
+    /** iTunes, then Deezer — no YouTube thumbnail (for songs that are not from YouTube). */
+    suspend fun findInCatalogues(meta: TrackMetadata): Artwork? = withContext(Dispatchers.IO) {
+        fromITunes(meta) ?: fromDeezer(meta)
+    }
+
     suspend fun find(meta: TrackMetadata): Artwork? = withContext(Dispatchers.IO) {
         fromITunes(meta)
             ?: fromDeezer(meta)
@@ -170,7 +175,21 @@ object ArtworkFinder {
         val artist = meta.artist?.takeIf { it.isNotBlank() }
             ?: return titleScore >= TITLE_ONLY_THRESHOLD
         if (titleScore < TITLE_THRESHOLD) return false
-        return similarity(artist, candidateArtist) >= ARTIST_THRESHOLD
+        return similarity(artist, candidateArtist) >= ARTIST_THRESHOLD ||
+            sameArtistWithGuests(artist, candidateArtist)
+    }
+
+    /**
+     * Catalogues list guests in the artist field ("Daft Punk, Pharrell
+     * Williams & Nile Rodgers") while a file's tag often names only the lead
+     * ("Daft Punk"), or the other way round. When every word of one is in the
+     * other, it is the same act; the title has already matched by then.
+     */
+    private fun sameArtistWithGuests(a: String, b: String): Boolean {
+        val ta = tokens(a)
+        val tb = tokens(b)
+        if (ta.isEmpty() || tb.isEmpty()) return false
+        return tb.containsAll(ta) || ta.containsAll(tb)
     }
 
     /**

@@ -61,7 +61,7 @@ emulator:
 - Pull-to-refresh, download pacing menu, green player, long-audio rule.
 - Fresh install with nothing touched: 7 files, 2 hidden at first launch
   (voice note, 12-min audiobook); the Filter screen shows that result.
-- `./verify.sh`: 115 unit tests pass, on Windows too.
+- `./verify.sh`: 148 unit tests pass, on Windows too.
 - Release APKs (R8, signed) smoke-tested on the emulator before each tag.
 - v0.2.1 (phone-reported bugs): Back inside Folders/Filesystem goes up a
   folder (`DetailedFolderAdapter` back callback, defers to the player sheet
@@ -82,6 +82,21 @@ emulator:
   speed, cleanup; app/ UpdateChecker + Backup (integrate 10b; daily copy in
   Download/Gramophone); richer download notification. Bump
   `app/ExtrasVersion.NAME` with every release tag. Not done: GitHub Actions CI.
+- v0.3.1: FocusResumer modes (pause+resume / duck to N% / pause; we don't
+  hold focus in duck mode, calls detected via AudioManager.mode); long music
+  stays a song (`MetadataProbe.looksLikeMusic`); podcast Move to songs /
+  remove; dismissable failed downloads.
+- v0.3.2: history/PlayLog (extras_plays.jsonl timeline + minutes per day) →
+  history/ui/StatsActivity ("Your stats", Home chip); library/SmartPlaylists
+  (3 .m3u files in Music/Smart playlists, refresh ≤ every 3 h); library/
+  CoverFixer + ui/LibraryToolsActivity (embed iTunes/Deezer covers via ffmpeg,
+  MediaStore.createWriteRequest; leaving after a write relaunches the main
+  task because the song lists don't rebind a row whose text is unchanged);
+  fade between songs in FocusResumer (fade-out then fade-in, NOT an overlap
+  crossfade; `extras_crossfade_seconds`). Integrate 10d wires the settings.
+  Pure stats/picks are in PlayLog.kt; verify.sh stubs HistoryEntry.
+  Emulator: use AVD `Gramophone_Test` on port 5556 — the shared
+  `Gramophone_API36` belongs to another chat whose VPN blocks YouTube.
 
 ## Build
 

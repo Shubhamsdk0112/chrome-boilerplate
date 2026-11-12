@@ -280,4 +280,57 @@
         <item quantity="one">%1$d more queued</item>
         <item quantity="other">%1$d more queued</item>
     </plurals>
+
+    <!-- v0.3.2: library tools, stats, fades -->
+    <string name="tools_settings_title">Library tools</string>
+    <string name="tools_settings_summary">Add missing covers, smart playlists</string>
+    <string name="tools_title">Library tools</string>
+    <string name="tools_covers_title">Missing covers</string>
+    <string name="tools_covers_explainer">Finds songs with no album art, looks each one up on iTunes and Deezer by its artist and title, and adds the cover to the file. You see every cover before anything changes, and Android asks once before files from other apps are touched.</string>
+    <string name="tools_covers_find">Find missing covers</string>
+    <string name="tools_covers_scanning">Checking songs… %1$d of %2$d</string>
+    <string name="tools_covers_looking">Looking up covers… %1$d of %2$d</string>
+    <string name="tools_covers_writing">Adding covers… %1$d of %2$d</string>
+    <string name="tools_covers_none_missing">Every song already has a cover.</string>
+    <string name="tools_covers_summary">%1$d songs have no cover. Found one for %2$d — untick any that look wrong.</string>
+    <string name="tools_covers_summary_none">%1$d songs have no cover, and iTunes and Deezer had no match for any of them.</string>
+    <string name="tools_covers_no_match">No match found for %1$d.</string>
+    <string name="tools_covers_unsupported">%1$d are Opus/Ogg files, which cannot take a cover this way.</string>
+    <plurals name="tools_covers_apply">
+        <item quantity="one">Add %1$d cover</item>
+        <item quantity="other">Add %1$d covers</item>
+    </plurals>
+    <plurals name="tools_covers_done">
+        <item quantity="one">Added a cover to %1$d song.</item>
+        <item quantity="other">Added covers to %1$d songs.</item>
+    </plurals>
+    <string name="tools_covers_again">Check again</string>
+    <string name="tools_covers_denied">Nothing was changed — Android did not get permission to edit the files.</string>
+    <string name="tools_smart_title">Smart playlists</string>
+    <string name="tools_smart_explainer">Playlists that keep themselves up to date, in the Playlists tab like your own. Switching this off deletes them.</string>
+    <plurals name="tools_smart_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
+    <string name="tools_smart_last">Updated %1$s</string>
+    <string name="tools_smart_just_now">just now</string>
+    <string name="tools_smart_never">Not made yet</string>
+    <string name="tools_smart_update">Update now</string>
+    <string name="stats_title">Your stats</string>
+    <string name="stats_all_time">All time</string>
+    <string name="stats_empty">Nothing yet for this period. Play counts from before this version are under All time; minutes and times of day are counted from now on.</string>
+    <string name="stats_minutes_label">Minutes listened</string>
+    <string name="stats_hours">That is %1$s hours</string>
+    <string name="stats_plays">plays</string>
+    <string name="stats_songs">songs</string>
+    <string name="stats_artists">artists</string>
+    <string name="stats_top_artists">Top artists</string>
+    <string name="stats_top_songs">Top songs</string>
+    <string name="stats_top_albums">Top albums</string>
+    <string name="stats_when">When you listen</string>
+    <string name="stats_peak_hour">Mostly around %1$s</string>
+    <string name="stats_streak">%1$d days in a row — your longest streak</string>
+    <string name="home_stats">Your stats</string>
+    <string name="extras_crossfade_title">Fade between songs (seconds)</string>
+    <string name="extras_crossfade_summary">Seconds; 0 is off</string>
 </resources>

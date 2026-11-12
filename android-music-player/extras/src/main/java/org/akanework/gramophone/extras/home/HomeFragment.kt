@@ -51,6 +51,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material3.AssistChip
@@ -158,6 +159,7 @@ private fun HomeScreen(listState: LazyListState) {
             if (event == Lifecycle.Event.ON_RESUME) {
                 tick++
                 PodcastRefresher.refreshIfStale(context)
+                org.akanework.gramophone.extras.library.SmartPlaylists.refreshIfDue(context)
             }
         }
         lifecycle.addObserver(observer)
@@ -320,6 +322,13 @@ private fun Shortcuts(context: Context) {
                 onClick = { context.startActivity(Intent(context, HistoryActivity::class.java)) },
                 label = { Text(stringResource(R.string.home_history)) },
                 leadingIcon = { Icon(Icons.Default.History, null, Modifier.size(AssistChipDefaults.IconSize)) },
+            )
+        }
+        item {
+            AssistChip(
+                onClick = { context.startActivity(Intent(context, org.akanework.gramophone.extras.history.ui.StatsActivity::class.java)) },
+                label = { Text(stringResource(R.string.home_stats)) },
+                leadingIcon = { Icon(Icons.Default.Insights, null, Modifier.size(AssistChipDefaults.IconSize)) },
             )
         }
     }

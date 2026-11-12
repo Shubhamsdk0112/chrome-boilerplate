@@ -1044,6 +1044,73 @@ def main(root: Path) -> int:
         marker="extras_interruption_mode",
     ))
 
+
+    # ------------------------------------------------------------------
+    # 10d. Library tools (missing covers, smart playlists) in Settings,
+    #      "Fade between songs" in Audio, and the smart-playlist refresh at
+    #      start (at most every three hours, on IO).
+    # ------------------------------------------------------------------
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_top.xml",
+        anchor="""    <Preference
+        android:icon="@drawable/ic_extras_podcast"
+        android:key="podcasts\"""",
+        replacement="""    <Preference
+        android:icon="@drawable/ic_extras_tools"
+        android:key="libraryTools"
+        android:layout="@layout/preference_basic"
+        android:summary="@string/tools_settings_summary"
+        android:title="@string/tools_settings_title" />
+
+    <Preference
+        android:icon="@drawable/ic_extras_podcast"
+        android:key="podcasts\"""",
+        marker='android:key="libraryTools"',
+    ))
+    steps.append(patch(
+        fragment,
+        anchor="""            "extrasApp" -> {""",
+        replacement="""            "libraryTools" -> {
+                startActivity(org.akanework.gramophone.extras.library.ui.LibraryToolsActivity::class.java)
+            }
+
+            "extrasApp" -> {""",
+        marker='"libraryTools" ->',
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "res" / "xml" / "settings_audio.xml",
+        anchor="""        <Preference
+            android:key="replaygain"
+            android:layout="@layout/preference_basic"
+            android:title="@string/settings_replaygain"
+            app:iconSpaceReserved="false" />""",
+        replacement="""        <Preference
+            android:key="replaygain"
+            android:layout="@layout/preference_basic"
+            android:title="@string/settings_replaygain"
+            app:iconSpaceReserved="false" />
+
+        <SeekBarPreference
+            android:defaultValue="0"
+            android:key="extras_crossfade_seconds"
+            android:layout="@layout/preference_seekbar"
+            android:max="12"
+            android:summary="@string/extras_crossfade_summary"
+            android:title="@string/extras_crossfade_title"
+            app:iconSpaceReserved="false"
+            app:min="0"
+            app:showSeekBarValue="true" />""",
+        marker="extras_crossfade_seconds",
+    ))
+    steps.append(patch(
+        root / "app" / "src" / "main" / "java" / "org" / "akanework" / "gramophone"
+        / "logic" / "GramophoneApplication.kt",
+        anchor="""        org.akanework.gramophone.extras.app.Backup.autoBackupInBackground(this)""",
+        replacement="""        org.akanework.gramophone.extras.app.Backup.autoBackupInBackground(this)
+        org.akanework.gramophone.extras.library.SmartPlaylists.refreshIfDue(this)""",
+        marker="SmartPlaylists.refreshIfDue",
+    ))
+
     print(f"Integrating :extras into {root}")
     for step in steps:
         print(step)

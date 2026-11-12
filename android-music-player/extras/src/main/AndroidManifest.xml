@@ -47,6 +47,14 @@
             android:label="@string/filter_title" />
 
         <activity
+            android:name="org.akanework.gramophone.extras.library.ui.LibraryToolsActivity"
+            android:exported="false"
+            android:label="@string/tools_title" />
+        <activity
+            android:name="org.akanework.gramophone.extras.history.ui.StatsActivity"
+            android:exported="false"
+            android:label="@string/stats_title" />
+        <activity
             android:name="org.akanework.gramophone.extras.app.ui.AppActivity"
             android:exported="false"
             android:label="@string/app_title" />

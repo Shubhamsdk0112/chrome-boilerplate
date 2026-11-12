@@ -101,6 +101,21 @@ class DownloadService {
     }
 }
 STUB
+# ListeningHistory needs media3; the stats maths only reads this row type.
+cat > stubs/HistoryEntryStub.kt <<'STUB'
+package org.akanework.gramophone.extras.history
+data class HistoryEntry(
+    val mediaId: String,
+    val uri: String,
+    val title: String,
+    val artist: String?,
+    val album: String?,
+    val artworkUri: String?,
+    val durationMs: Long,
+    val playCount: Int,
+    val lastPlayedAt: Long,
+)
+STUB
 cat > stubs/CoreKtxStubs.kt <<'STUB'
 package androidx.core.content
 import android.content.SharedPreferences
@@ -135,6 +150,7 @@ set +e
     "$SRC/main/java/org/akanework/gramophone/extras/filter/"*.kt \
     "$SRC/main/java/org/akanework/gramophone/extras/importer/"{YtDlp,TrackMetadata,ArtworkFinder,Ffmpeg,MusicImporter,DownloadRepository,DownloadError,ImportIndex,JobStore,Pacing,Cookies,YouTubeLinks,YouTubeSearch,PlaylistImports}.kt     "$SRC/main/java/org/akanework/gramophone/extras/podcast/"{Feed,PodcastSearch,PodcastStore,EpisodeDownloader,YouTubeChannels,PodcastRefresher}.kt \
     "$SRC/main/java/org/akanework/gramophone/extras/app/"{ExtrasVersion,Releases,Backup}.kt \
+    "$SRC/main/java/org/akanework/gramophone/extras/history/PlayLog.kt" \
     "$SRC/test/java/org/akanework/gramophone/extras/"*/*.kt \
     -classpath "$CP" -d out > compile.log 2>&1
 compile_rc=$?
@@ -155,7 +171,7 @@ echo "==> Running tests"
     org.akanework.gramophone.extras.importer.YouTubeLinksTest \
     org.akanework.gramophone.extras.importer.ArtworkMatchTest \
     org.akanework.gramophone.extras.importer.PickOutputTest \
-    org.akanework.gramophone.extras.importer.AudioFormatTest     org.akanework.gramophone.extras.podcast.RssParserTest org.akanework.gramophone.extras.podcast.YouTubeChannelsTest org.akanework.gramophone.extras.app.ReleasesAndBackupTest 2>&1 | grep -v "Picked up"
+    org.akanework.gramophone.extras.importer.AudioFormatTest     org.akanework.gramophone.extras.podcast.RssParserTest org.akanework.gramophone.extras.podcast.YouTubeChannelsTest org.akanework.gramophone.extras.app.ReleasesAndBackupTest org.akanework.gramophone.extras.history.StatsTest 2>&1 | grep -v "Picked up"
 
 # These pull in Compose and androidx.core, which cannot be resolved here, so
 # only their syntax can be checked. Resolution errors are expected and ignored;

@@ -60,6 +60,15 @@ class ArtworkMatchTest {
     }
 
     @Test
+    fun `guests listed in the catalogue artist still match the lead`() {
+        // iTunes names the act "Daft Punk, Pharrell Williams & Nile Rodgers";
+        // plain token overlap is 2/6 and used to miss.
+        assertTrue(matches(meta("Get Lucky", "Daft Punk"), "Get Lucky", "Daft Punk, Pharrell Williams & Nile Rodgers"))
+        assertTrue(matches(meta("Get Lucky", "Daft Punk feat. Pharrell Williams"), "Get Lucky", "Daft Punk"))
+        assertFalse(matches(meta("Get Lucky", "Daft Punk"), "Get Lucky", "Vitamin String Quartet"))
+    }
+
+    @Test
     fun `a different song is rejected`() {
         assertFalse(matches(meta("Get Lucky", "Daft Punk"), "Instant Crush", "Daft Punk"))
     }

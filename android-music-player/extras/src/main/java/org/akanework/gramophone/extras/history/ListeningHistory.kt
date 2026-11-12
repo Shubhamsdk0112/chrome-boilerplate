@@ -136,6 +136,7 @@ object ListeningHistory {
 
     fun clear(context: Context) {
         _entries.value = emptyMap()
+        PlayLog.clear(context)
         scheduleSave(context.applicationContext)
     }
 
@@ -164,6 +165,7 @@ object ListeningHistory {
                 if (id != currentId) {
                     currentId = id; heardMs = 0; counted = false
                 }
+                if (c.isPlaying) PlayLog.addListened(application, POLL_MS)
                 if (!c.isPlaying || counted) continue
                 heardMs += POLL_MS
                 val duration = c.duration.takeIf { it > 0 } ?: item.mediaMetadata.durationMs ?: 0L
@@ -195,6 +197,10 @@ object ListeningHistory {
             val next = map + (item.mediaId to entry)
             if (next.size <= MAX_ENTRIES) next
             else next.values.sortedByDescending { it.lastPlayedAt }.take(MAX_ENTRIES).associateBy { it.mediaId }
+        }
+        // Outside update {}: that block may run more than once.
+        _entries.value[item.mediaId]?.let { e ->
+            PlayLog.append(application, Play(now, e.mediaId, e.title, e.artist, e.album))
         }
         scheduleSave(application)
     }
